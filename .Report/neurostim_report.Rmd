@@ -1,0 +1,386 @@
+---
+title: "neurostim_report"
+author: "Jesús Cabrera-Álvarez"
+date: "18/10/2021"
+runtime: shiny
+output: html_document
+bibliography: references.bib
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The aim of this project is to build up models to test whether it is possible to functionally decouple two brain regions using tACS, and to explore how to deliver the protocol to maximize the decoupling effect.
+
+> **Note for graph interaction**: you can interact with graphs, including or deleting traces selecting them (double click) on the legend. You can zoom in and out using the lens button in the chart. And you can explore the values plotted just pointing over the chart.
+
+## Methods
+
+#### Dataset
+
+We used data from 10 healthy subjects (7 women; age mean=69 and sd=4.16) in the LCCN database (NEMOS project). We downloaded tsss filtered MEG recordings, DWI and MRI T1 images.
+
+#### MEG recordings
+
+We processed brain MEG recordings into *Brainstorm* software [@Tadel2011]: first, marking and deleting bad channels and segments; second, applying a current notch at European alternating current electric frequency (50 Hz) and three armonics (100, 150, 200Hz); third, applying ICA to detect and remove cardiac and oculo-muscular components in the signals [@Niso2019]. Forth, we computed the forward model using an MRI recordings aligned to MEG position. Fifth, we transformed channel signals into source space signals using the Minimum Norm Estimate (MNE) with constrained dipoles (normal to cortex) method. Sixth, we computed the Phase Locking Value (eq. 1) [@Bruña2018; @Lachaux1999] between each pair of source signals and we averaged them following the parcellation proposed in AAL2 [@Rolls2015]
+
+> Not really, they were grouped into AAL3 atlas and then downsampled to AAL2. This was done by merging AAL3 regions: for example a thalamus regions was created by merging all small thalamus subregions. This was because AAL3 parcellation is the one implemented by default in CAT12-Brainstorm plugin. We must **check** for differences in the parcellation between AAL2 and AAL3. **CHECKED: AAL3 just adds new areas it doesn't change main roi definitions. Then, it shouldnt be a problem.**
+>
+> For the Structural connectivity in DSI studio, it was directly computed in AAL2 and then Cerebellum and other subortical areas were removed (this removal was because some areas were not found with CAT12).
+
+$$
+PLV_{ij}(t)= \cfrac{1}{N}\Bigg|\sum_{n=1}^{N} e^{-i(\varphi_i(t, n)-\varphi_j(t,n))}\Bigg| 
+$$
+
+#### Structural connectivity
+
+We performed a tractography analysis of the diffusion weighted images in DSIstudio [@yeh2021]. We reconstructed the tracts based on the AAL2 parcellation. We used the following tracking parameters:
+
++--------------------+--------------------+
+| Tracking parameter | value              |
++====================+====================+
+| minimum length     | 10mm               |
++--------------------+--------------------+
+| maximum length     | 180mm              |
++--------------------+--------------------+
+| seed orientation   | primary            |
++--------------------+--------------------+
+| terminate if       | 5 million tracts   |
++--------------------+--------------------+
+
+We extracted two connectivity matrices: one for number of paths and another for tract lengths between regions. For connectivity analysis, we used the parameters "end in region" and threshold = 0.0001. The former implies that that only tracts starting from a ROI and ending into another ROI are taken into account, the latter means that only tracts with 0.0001 times the number of maximum number of connecting tracks will be considered.
+
+#### Stimulation modeling
+
+We used ROAST toolbox to calculate the propagation of electric current through the brain. First, it segments the brain into its different tissues: scalp, skull, CSF, gray matter and white matter. Then, a FEM mesh is constructed and electrodes are placed over the scalp. Model parameters allows to define electrode position, orientation, shape, size and input current. Finally, Laplacian equations are solved to estimate how electricity spread over the brain. One electric field vector per mesh element is the main output of the model.
+
+In a first stage, we tried two different set-ups with pad electrodes and *user defined* configuration:
+
+-   **Alpha peak rise** set up. Two pad electrodes (70, 50, 3 mm) placed over Oz-Cz, with +/-1.5 mA oriented 'superior-inferior' and 'anterior-posterior'. This was designed to match the experimental conditions of an ongoing experiment that was measuring the alpha peak module rise with tACS stimulation with frequency equal to individual alpha frequency.
+
+![](D:/Users/Jesus%20CabreraAlvarez/OneDrive%20-%20Universidad%20Complutense%20de%20Madrid%20(UCM)/LNCC/LCCN%20_data/AVG_NEMOS/Roast_model-OzPz/ef_plot.jpg){width="332"}
+
+-   **Desynchronization with naive Precuneus target**. Two pad electrodes (70, 50, 3 mm) placed over P3-P4 with +/-1.5 mA both oriented 'superior-inferior'. This was designed **naively**, putting electrodes over one of the ROIs we wanted to desynchronize (Precuneus). Our aim here, was to do a first naive approximation to the problem of desynchronizing.
+
+![](D:/Users/Jesus%20CabreraAlvarez/OneDrive%20-%20Universidad%20Complutense%20de%20Madrid%20(UCM)/.Research/T%20-%20StimulationStudies/reports_neuroStim/parietalStim.png){width="331"}
+
+In a second stage, we used ***optimization*** algorithms implemented in ROAST to maximize focality of stimulation in specific points of the brain. We used weighted least squares (wsl-l1) algorithm to recursively enhance the position and electric current distribution of disc electrodes. The stimulation targeted the anterior cingulate cortex (**ACC**) defined by MNI coordinates [5 34 28; -5 34 28].
+
+![](D:/Users/Jesus%20CabreraAlvarez/OneDrive%20-%20Universidad%20Complutense%20de%20Madrid%20(UCM)/LNCC/LCCN%20_data/NEMOS_035/.roast/N35leadfield/ACC_target/ef_mag-anterior.png){width="337"}
+
+![](D:/Users/Jesus%20CabreraAlvarez/OneDrive%20-%20Universidad%20Complutense%20de%20Madrid%20(UCM)/LNCC/LCCN%20_data/NEMOS_035/.roast/N35leadfield/ACC_target/ef_mag-posterior.png){width="334"}
+
+#### Brain network model
+
+To build an in-silico model of the brain we used *The Virtual Brain* software [@Sanz2013] implementing neural mass models to reproduce regional dynamics in the brain and structural connectivity matrices to connect those dynamics (see above).
+
+##### Neural mass model
+
+The model chosen to reproduce electrophysiological dynamics was Jansen-Rit [@Jansen1995]. This model is a biologically informed abstraction of a cortical column capable of reproducing the typical alpha activity. It includes three types of neurons: pyramidal, excitatory and inhibitory interneurons. These three subpopulations of neurons are connected and interact with each other. Biological observations as PSP amplitude, membrane time constants and synaptic contacts between neurons types are taken into account. A set of coupled differential equations implement all these parameters and deploy the dynamics of each subpopulation. The activity of pyramidal neurons is used to be considered as the main output of the model, due to the believe that pyramidal neurons - because of their shape and orientation - are greatly responsible for the observed electrophysiological signals in M/EEG.
+
+$$
+\dot{y_0}(t) = y_3(t)\\
+\dot{y_1}(t) = y_4(t)\\
+\dot{y_2}(t) = y_5(t)\\
+\dot{y_3}(t) = Aa Sigm[y_1(t) - y_2(t)]-2ay_3(t)-a^{2}y_0(t)\\
+\dot{y_4}(t) = Aa*(p(t) + lrc + stimulus(t) + C_2 Sigm[C_1y_0(t)])-2ay_4(t)-a^{2}y_1(t)\\
+\dot{y_5}(t) = Bb*(C_4Sigm[C_3y_0(t)])-2by_5(t)-b^{2}(t)\\
+$$
+
+where
+
+$$
+Sigm(v)=2e_0/(1+e^{r(v_0-v)})\\
+lrc (i, t) = \sum_{j=1}^{N} y_{0_{j}}(t-tau_{ij}) * SC(i,j)\\
+stimulus(i,t) = k*efmag*\sin(2\pi*freq*t)
+$$
+
+**lrc** stands for long range coupling - the incoming input from other regions - and SC for the connection tracts between regions. As $y_0$ represents the output of each regional model, it also represents the input for neighbor regions. $tau_{ij}$ represents the delay between regions based on tract lengths matrix extracted in the tractography analysis. $efmag$ determines the intensity of the current applied over one region of interest. $k$ stands for a constant calibration term (see [*Stimulation integration*] below). Our model follows parameter definition from @Stefanovski2019:
+
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| parameter | description                                       | unit                                                                                                                                                                                                                                                                                  | value  |
++===========+===================================================+:=====================================================================================================================================================================================================================================================================================:+:======:+
+| $$        | Maximum amplitude of EPSP                         | $$mV$$                                                                                                                                                                                                                                                                                | 3.25   |
+|     A     |                                                   |                                                                                                                                                                                                                                                                                       |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                       |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | Maximum amplitude of IPSP                         | $$mV$$                                                                                                                                                                                                                                                                                | 22     |
+|     B     |                                                   |                                                                                                                                                                                                                                                                                       |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                       |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | Inverse of the excitatory dendritic time constant | $$                                                                                                                                                                                                                                                                                    | 0.1    |
+|     a     |                                                   |                                                                                                                                                                                                                                                                               ms^{-1} |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                   $$  |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | Inverse of the inhibitory dendritic time constant | $$                                                                                                                                                                                                                                                                                    | 0.06   |
+|     b     |                                                   |                                                                                                                                                                                                                                                                               ms^{-1} |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                   $$  |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | avg syn contacts pyramidals to excitatory         |                                                                                                                                                                                                                                                                                       | 135    |
+|     C_1   |                                                   |                                                                                                                                                                                                                                                                                       |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                       |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | avg syn contacts exc to pyramidals                |                                                                                                                                                                                                                                                                                       | 108    |
+|     C_2   |                                                   |                                                                                                                                                                                                                                                                                       |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                       |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | avg syn contacts pyramidals to inhibitory         |                                                                                                                                                                                                                                                                                       | 33.75  |
+|     C_3   |                                                   |                                                                                                                                                                                                                                                                                       |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                       |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | avg syn contacts inhibitory to pyramidals         |                                                                                                                                                                                                                                                                                       | 33.75  |
+|     C_4   |                                                   |                                                                                                                                                                                                                                                                                       |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                       |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | Input firing rate at pyramidal cells              | $$                                                                                                                                                                                                                                                                                    | 0.1085 |
+|     p     |                                                   |                                                                                                                                                                                                                                                                               ms^{-1} |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                   $$  |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | Maximum firing rate at 2e0 (i.e. 2\*nu_max)       | $$                                                                                                                                                                                                                                                                                    | 2.5    |
+|     e_0   |                                                   |                                                                                                                                                                                                                                                                               s^{-1}  |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                   $$  |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | steepness of sigmoid function                     |                                                                                                                                                                                                                                                                                       | 0.56   |
+|     r     |                                                   |                                                                                                                                                                                                                                                                                       |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                       |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+| $$        | mean PSP threshold for 50% maximum firing rate    | $$mV$$                                                                                                                                                                                                                                                                                | 6      |
+|     v_0   |                                                   |                                                                                                                                                                                                                                                                                       |        |
+|     $$    |                                                   |                                                                                                                                                                                                                                                                                       |        |
++-----------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+--------+
+
+```{r echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/.1995JansenRit/TimeSeries_saved.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/.1995JansenRit/FFT_saved.html')
+```
+
+We can observe in this sample subject (NEMOS 35) the remarked alpha type of oscillation which can get up to 0.3 rFC empirical-simulated.
+
+Nevertheless, we are aware of the model's limitations: empirical signals tend to have wider spectra and diverse frequency peaks between ROIs. In fact, we remit the reader to the supplementary data to check how artifactual becomes the filtering of these signals out of the alpha band (see [*Filtered signals at different frequencies*]). Additionally, we include a potential solution for this caveat using an extended version of the model (see *Extended Jansen-Rit model*).
+
+##### Working points
+
+Two parameters were set free in this model: coupling factor (g) and conduction speed (s). We explored the parameter space for both variables, and measured the Pearson's correlation between empirical and simulated functional connectivity for each subject. This gave us the point in the parameter space that optimize FC correlation for that group of subject and model definition (called working point). **Here, we decided to use the point that maximizes the average correlation for the whole group of subjects** trying not to introduce additional variability in the results - changing the coupling factor could have an indirect effect over the stimulation strength -.
+
+```{r echo=FALSE}
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/deepenPSE/PSE/PSE_singleWORKINGPOINT-allNEMOS-m07d07y2021-t12h.11m.44s/WorkingPoints-g&s_Subjects Average - PLVallbands.PLE.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/deepenPSE/PSE/PSE_singleWORKINGPOINT-allNEMOS-m07d07y2021-t12h.11m.44s/WorkingPoints-g&s_NEMOS_035 - PLVallbands.PLE.html')
+```
+
+##### Stimulation integration
+
+The tACS stimulus is computed as a sinusoidal signal incoming into the ROI by summing up with other inputs to the dynamic of the excitatory interneurons subpopulation. The amplitude of that stimulus is determined by the average electric field magnitude per ROI calculated into ROAST (see [stimulation modeling]). Additionally, to constrain the influence of the electric stimulation to experimental observations, we fitted a calibration constant $k$ such that our stimulation in occipito-parietal areas and in the individual alpha frequency peak generates an average module rise similar to those reported in empirical research around 14% group average [@Zaehle2010; @Kasten2017]. Alpha peak rise was measured as follows:
+
+$$
+rise = \cfrac{\int_{IAF - 2}^{IAF+2}stimulated\ spectra}{\int_{IAF-2}^{IAF+2}baseline\ spectra}*100
+$$
+
+## Results
+
+#### Alpha peak rise
+
+We stimulated our brain model over Oz-Cz electrode positions to calibrate model's stimulation weight (i.e the influence that stimulation input exerts over a node's dynamics) by matching empirical findings for alpha peak rise in group average.
+
+> Here there is an issue: should we normalize the increment of alpha peak? By now I am computing just the ratio between the integral of the spectra from 8 to 12 hertz with stimulation weight 'x' over the integral of the spectra from 8 to 12 hertz without stimulation. Nevertheless, depending on how you record the signals, or what model you are using, the absolute module can change. Therefore, you should try to normalize somehow the spectra from empirical research and from your simulations to do a good comparisons. The magnitude are not the same and this is a caveat of your research that you should **solve soon**, *please*. **CHECKED**: Now, its **analytically solved**; if you normalize everything you are modifying all spectra but nothing change in respect to proportions for each spectra. Look into your research notes for more info.
+
+These plots show how much increases the amplitude of the alpha peak measured as explained above. The first shows module units, the second one shows percentage.
+
+```{r echo=FALSE}
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_autoGROUP_Wfit-NEMOS.1995JansenRitm10d08y2021-t15h.32m.56s/allNemosAAL_alphaRise_modules_10sim.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_autoGROUP_Wfit-NEMOS.1995JansenRitm10d08y2021-t15h.32m.56s/allNemosAAL_alphaRise_percent_10sim.html')
+```
+
+The calibration constant for the model's stimulator ($k$) was set to 0.07787 as is the closest point over 14% increase of alpha peak. Large error bars are found both into experimental work [@carrasco ongoing] and in other computational models @Merlet2013. Next figure shows Merlet et al. (2013) calibration similar to that implemented in our pipeline but measuring model's increase of alpha peak over one subject instead of the group.
+
+![](D:/Users/Jesus%20CabreraAlvarez/OneDrive%20-%20Universidad%20Complutense%20de%20Madrid%20(UCM)/.Research/T%20-%20StimulationStudies/reports_neuroStim/merlet_alphaincrease.PNG)
+
+#### **Precuneus stimulation - desync. naive approach**
+
+Once model's stimulation was calibrated, we could proceed to explore desynchronization setups. First, we tried stimulating Precuneus with pad electrodes locating them over the scalp close to the region: we used P3-P4 positions. Although it is not an optimized stimulation strategy, we achieved some desynchronization for some subjects in the sample and we could understand the underlying desynchronization mechanisms. Here, we show the results for a sample subject (NEMOS 35) - y axis show functional connectivity and x axis show the frequency used in the stimulation protocol. When frequency equals 0 it means there was no stimulation so this value is taken as baseline. Bars are plotting the result of 10 simulations with the same protocol and subject. We checked for each subject the relations between ACC and Precuneus (left and right).
+
+> Important note over **X-AXIS**: in the following graphs we plot results for an array of frequencies to test desyncrhonization [8Hz-14Hz] and we add a [0Hz] point to remark where the baseline is. **Be aware of it looking at the frequency charts.**
+
+```{r echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_testFreqs.1995JansenRit_NEMOS-m10d14y2021-t10h.51m.04s - groupWfit, precuneus_efmag/NEMOS_035FC_ACC_L-Precuneus_L-w10sim_v2.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_testFreqs.1995JansenRit_NEMOS-m10d14y2021-t10h.51m.04s - groupWfit, precuneus_efmag/NEMOS_035FC_ACC_R-Precuneus_L-w10sim_v2.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_testFreqs.1995JansenRit_NEMOS-m10d14y2021-t10h.51m.04s - groupWfit, precuneus_efmag/NEMOS_035FC_ACC_L-Precuneus_R-w10sim_v2.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_testFreqs.1995JansenRit_NEMOS-m10d14y2021-t10h.51m.04s - groupWfit, precuneus_efmag/NEMOS_035FC_ACC_R-Precuneus_R-w10sim_v2.html')
+```
+
+For this subject, we can observe an slight enhance in FC under the yellow dashed line and a diminished FC under the blue dashed line. This happens for each of the four possible connections of interest. Additionally, we observed that in our simulations the major decrease in FC happens rising the frequency from the IAF instead of lowering down it.
+
+We can look at the frequency chart below to understand what is happening under the hood to the signals when FC varies. In the following plot vertical dashed lines correspond to the FC minimum and maximum for the combination ACC-r and Pre-r.
+
+```{r, echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_testFreqs.1995JansenRit_NEMOS-m10d14y2021-t10h.51m.04s - groupWfit, precuneus_efmag/NEMOS_035FFT_ACC_R-Precuneus_R-w10sim_v2.html')
+
+```
+
+We expected that entrainment happens around the node's baseline oscillation frequency. Additionally, we realized that FC enhances (yellow dashed vetical line) when both regions have entrained with the stimulus oscillation and that FC diminish (blue dashed vertical line) when one of the areas keeps the entrainment and the other doesn't.
+
+We didn't expect to see that the stimulated region was less entrained than the other. However, results showed that the area experiencing larger entrainment with the stimulation was ACC instead of Precuneus (where we delivered the stimulation). The legend's values for the frequency plot shows the amount of electric field magnitude reaching each ROI. It confirms supporting that stimulation was larger for Precuneus than for ACC. Thus, we did a further analysis to observe how structurally connected were those regions to the whole network. We observed that ACC area is less connected than Precuneus (see next table) and in fact, that ACC left is less connected than ACC right.
+
+> Is this consistent across subjects? Is it a matter of tractography analysis pipeline? I doubt it could be an issue with DSI studio. But we don't process the matrices further, we just merge or eliminate regions: **check it**.
+
+Looking at the frequency chart, we can see there is an inverse relationship between the amount of tracts connecting a ROI and its facility to entrain the stimulation. We could say that being less structurally connected seems to make a ROI more "vulnerable" to stimulation. It should be a matter of future research: why is ACC better target for entrainment than Precuneus?
+
+#### ![](D:/Users/Jesus%20CabreraAlvarez/AppData/Local/RStudio/tmp/paste-0C10218F.png){width="316"}
+
+#### **ACC stimulation - focal optimization**
+
+We followed our research path to enhance desynchronization results. We applied an optimized stimulation protocol - personalized per subject - with multiple disc electrodes targeting ACC.
+
+```{r echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_testFreqs.1995JansenRit_NEMOS-m10d11y2021-t11h.13m.38s - groupWfit, accTarget/NEMOS_035FC_ACC_L-Precuneus_L-w10sim_v2.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_testFreqs.1995JansenRit_NEMOS-m10d11y2021-t11h.13m.38s - groupWfit, accTarget/NEMOS_035FC_ACC_R-Precuneus_L-w10sim_v2.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_testFreqs.1995JansenRit_NEMOS-m10d11y2021-t11h.13m.38s - groupWfit, accTarget/NEMOS_035FC_ACC_L-Precuneus_R-w10sim_v2.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_testFreqs.1995JansenRit_NEMOS-m10d11y2021-t11h.13m.38s - groupWfit, accTarget/NEMOS_035FC_ACC_R-Precuneus_R-w10sim_v2.html')
+```
+
+```{r, echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/neuroStimulation/PSE/PSE_testFreqs.1995JansenRit_NEMOS-m10d11y2021-t11h.13m.38s - groupWfit, accTarget/NEMOS_035FFT_ACC_R-Precuneus_R-w10sim_v2.html')
+
+```
+
+Here, we observe an intensification of the same phenomena reported in the previous protocol. Desynchronization from baseline has enlarge and error bars have shrinked. We clearly see a better diminish in FC over the IAF instead of under it. Nevertheless, the desynchronization obtained under IAF here overcomes largely the ones obtained with the non-focal protocol.
+
+## Discussion
+
+With this work we wanted to explore the question of: how should we stimulate a brain with tACS to achieve the desynchronization of a couple of regions? Our model supports the possibility to achieve it and points out to +1/2Hz over IAF as the optimum stimulation frequency. Nevertheless, the optimum frequency depends on how far you can take the differential regional entrainment. Consider stimulating with two setups where one upgrades the focality of the electrical current over the target. Then, using the optimized one you would get further entrainment (i.e. it happens in a larger set of frequencies, further apart from that ROI's natural oscillation), and thus the optimal stimulation frequency would be higher.
+
+As it is not possible to measure instantaneuosly the stimulation entrainment in real subjects - to check what frequencies actually generates entrainment and where -, we would propose to be conservative and test with close to IAF stimulation frequencies (i.e. around +1Hz over IAF) before taking it further apart.
+
+The neural mass model implemented here (Jansen-Rit, 1995) has several limitations regarding its closeness to empirical values. First, it generates very defined signals and spectra (see [Neural mass model]), while empirical ones tend to be more noisy and to introduce more spectral components. Second, simulated FC values are much higher in average than the empirical ones. This is something to bear in mind during the desynchronization process as high connectivity values could be easier to reduce than low ones. This is connected to the third limitation, using a global working point for every subject distorted the personalized optimum where FC correlation is maximized, what usually means that FC get higher values (see [FC fit evolution over g - scatter and heatmap]).
+
+Future research should try to do the same desyncrhonization protocol with an enhanced regional model which could reproduce better empirical observations. Additionally, believe it is important to explore why ACC is better stimulation target than Precuneus.
+
+## Supplementary data
+
+#### Extended Jansen-Rit model
+
+This is a very recent development in my research, we are working on closer to reality signals using the model JansenRitDavid2003 [@David2003]. It should be considered to be implemented into the stimulation pipeline before submitting an article. This is a work in progress: we now want to use machine learning algorithms to adjust both simulation parameters optimizing empirical-simulated FC correlation and optimizing empirical-simulated FFT fit. We will see if results are good enough (in terms of FC fitting) to be implemented.
+
+```{r echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/.2003JansenRitDavid_N/timeseries-w=[0.8]_saved.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/.2003JansenRitDavid_N/FFT_w=[0.8]_saved.html')
+```
+
+#### Filtered signals at different frequencies
+
+Choosing one signal randomly (all have similar dynamics), we can explore to what extent there are components in different frequency bands. Here we are still working on a sample subject (NEMOS 35) and a random region (Precentral gyrus left).
+
+```{r echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/figures/JR_1-delta_Precentral_L_conversions.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/figures/JR_2-theta_Precentral_L_conversions.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/figures/JR_3-alpha_Precentral_L_conversions.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/figures/JR_4-beta_Precentral_L_conversions.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/figures/JR_5-gamma1_Precentral_L_conversions.html')
+```
+
+Thus, **we should advice that for the following results just consider Alpha band plots (omit other bands analysis)** as the model implemented in the following will be Jansen Rit (1995).
+
+Before going on, take a look on the enhanced result with the adapted model of JansenRitDavid2003. They look promising.
+
+```{r echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/figures/JRD_1-delta_Precentral_L_conversions.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/figures/JRD_2-theta_Precentral_L_conversions.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/figures/JRD_3-alpha_Precentral_L_conversions.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/figures/JRD_4-beta_Precentral_L_conversions.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/figures/JRD_5-gamma1_Precentral_L_conversions.html')
+```
+
+#### FC fit evolution over g - scatter and heatmap
+
+Looking at the parameter space we can observe the importance of coupling factor in explaining the amount of correlation between empirical and simulated FC matrices. Here, we wanted to analyze in what sense this parameter was getting closer both matrices.
+
+```{r echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/deepenPSE/PSE/dynFC.1995JansenRit-AVG_NEMOS_CB-m06d12y2021-t23h.56m.49s - duoplotCB_JR/duoPLV (alpha band)_emp-sim.html')
+```
+
+We observe that from baseline simulated PLV values (y axis of the dynamical plot) are high. We checked whether this effect also occured in spiking network models or it was just an artifact of very precise alpha oscillatory process. The results for **spiking network** are plotted below.
+
+```{r echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/deepenPSE/PSE/dynFC.SpikingNetwork-AVG_NEMOS_CB-m06d13y2021-t01h.15m.53s - duoplotCB_spiking/duoPLV SpikingNetwork (alpha band)_emp-sim.html')
+```
+
+#### Bifurcation diagrams over g - min/max amplitude
+
+We also did want to know what was happening at the signal level. Functional connectivity could be appearing from artifactual initial transients, where no signal is actually happening. This plots were calculated taking the maximum and minumum of each signal for each g value. Nevertheless, this could still be showing the effect of initial transients and another measure of sd in the whole signal could be more informative.
+
+```{r echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/deepenPSE/PSE/bifurcationsPSE_allNEMOS-m06d21y2021-t15h.47m.59s/bifurcation_diagrams-all_bifurcation_diagram.1995JansenRit-NEMOS_035-t10000-m06d21y2021.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/deepenPSE/PSE/bifurcationsPSE_allNEMOS-m06d21y2021-t15h.47m.59s/bifurcation_diagram-single_bifurcation_diagram.1995JansenRit-NEMOS_035-t10000-m06d21y2021.html')
+
+```
+
+#### Permutation test - correlation significance
+
+We calculated the significance of each correlation comparing the result to a surrogate distribution generated by switching indexes (n_perm times) in the linearized upper triangle of the FC simulated matrix. This gave us a random distribution of the following shape:
+
+![](D:/Users/Jesus%20CabreraAlvarez/PycharmProjects/brainModels/deepenPSE/figures/Imagen1.png)
+
+```{r}
+#PYTHON CODE
+# n_perm = 10000 # number of permutations
+
+# rand_distribution = list()
+
+# t1_temp = np.copy(t1) # t1 = linearized upper triangle of sim[0] and emp[1] FC matrices
+
+# for i in range(n_perm):
+  
+    # random_indexes = np.random.permutation(range(len(t1[0]))) # indices to permute
+    
+    # t1_temp[0, :] = t1[0, random_indexes] # Permutes indices
+    
+    # rand_distribution.append(np.corrcoef(t1_temp)[0, 1]) # correlates emp-surrogate
+
+# newRow.append(scipy.stats.ttest_1samp(np.asarray(rand_distribution), plv_r).pvalue) # calculates significance comparing the original emp-sim FCr in front of the surrogate distribution (rand_dist)
+```
+
+This way almost every working point was statistically significant. The two exceptions are due to the non-correlation nature of the relationship at that working point.
+
+```{r echo=FALSE}
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/deepenPSE/PSE/PSEsig.1995JansenRit-AVG_NEMOS-m06d11y2021-t21h.45m.17s - permutationTest/paramSpace-g&s_AVG_NEMOS.1995JansenRit_PLV.html')
+
+htmltools::includeHTML('D:/Users/Jesus CabreraAlvarez/PycharmProjects/brainModels/deepenPSE/PSE/PSEsig.1995JansenRit-AVG_NEMOS-m06d11y2021-t21h.45m.17s - permutationTest/paramSpace-g&s_significance.html')
+```
+
+#### SCemp vs FCsim
+
+Here we compared for an average subject SC empirical with FC simulated. The question was: were we reproducing just the relations in the structure? As explained below, we should ***just consider alpha band results*** results as other bands mas come from artifactual filtering.
