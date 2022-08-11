@@ -1,3 +1,4 @@
+import glob
 import os
 import time
 import subprocess
@@ -6,6 +7,7 @@ import numpy as np
 import scipy.signal
 import pandas as pd
 import scipy.stats
+import glob
 
 from tvb.simulator.lab import *
 from mne import time_frequency, filter
@@ -14,20 +16,19 @@ import plotly.io as pio
 import plotly.express as px
 
 import sys
-sys.path.append("D:\\Users\Jesus CabreraAlvarez\PycharmProjects\\")  # temporal append
+sys.path.append("E:\\LCCN_Local\PycharmProjects\\")  # temporal append
 from toolbox.fft import multitapper
 from toolbox.fc import PLV
 from toolbox.signals import epochingTool
-from jansen_rit_david_mine import JansenRitDavid2003_N
+from tvb.simulator.models.jansen_rit_david_mine import JansenRitDavid2003_N
 
-modes = {"jrd": {"stimW": 0.1106, "wp": (96, 17.5), "modelid": ".2003JansenRitDavid_N", "struct": "AAL2red"},
-         "cb": {"stimW": 0.11885, "wp":(99, 6.5), "modelid": ".1995JansenRit", "struct": "CB"},
-         "jr": {"stimW": 0.07787, "wp": (37, 22.5), "model": ".2003JansenRitDavid_N", "struct": "AAL2red"}}   # "jrd"; "cb"; "jrdcb"
+modes = {"jrd": {"stimW": 0.1106, "wp": (), "modelid": ".2003JansenRitDavid_N", "struct": "AAL2"},
+         "cb": {"stimW": 0.11885, "wp": (), "modelid": ".1995JansenRit", "struct": "CB"},
+         "jr": {"stimW": 0.3, "wp": (15, 21.5), "model": ".1995JansenRit", "struct": "AAL2"}}   # "jrd"; "cb"; "jrdcb"
 
 ### MODE
-mode = "cb"
-# Choose a name for your simulation and define the empirical for SC
-model_id = modes[mode]["modelid"]
+mode = "jr"
+stimulation = "roast_ACCtarget"  # roast_ACCtarget; roast_P3P4Model;
 
 # Structuring directory to organize outputs
 wd = os.getcwd()
@@ -36,35 +37,39 @@ main_folder = wd + "\\" + "PSE"
 if not os.path.isdir(main_folder):
     os.mkdir(main_folder)
 
-specific_folder = main_folder + "\\PSE_testFreqs_" + mode + model_id + "-" + time.strftime("m%md%dy%Y-t%Hh.%Mm.%Ss")
+specific_folder = main_folder + "\\PSE_testFreqs_" + mode + "-" + stimulation + '-' + time.strftime("m%md%dy%Y-t%Hh.%Mm.%Ss")
 os.mkdir(specific_folder)
 
-ctb_folder = "D:\\Users\Jesus CabreraAlvarez\PycharmProjects\\brainModels\\CTB_data\\output\\"
+ctb_folder = "E:\\LCCN_Local\PycharmProjects\CTB_data2\\"
 
-simLength = 60 * 1000  # ms - relatively long simulation to be able to check for power distribution
+simLength = 24 * 1000  # ms - relatively long simulation to be able to check for power distribution
 samplingFreq = 1000  # Hz
 transient = 4000  # ms to exclude from timeseries due to initial transient
 n_simulations = 10
 
+working_points = [("jr", "NEMOS_035", 17, 12.5),  # JR
+                  ("jr", "NEMOS_049", 14, 16.5),  # manipulated: original 115, 2.5
+                  ("jr", "NEMOS_050", 16, 13.5),
+                  ("jr", "NEMOS_058", 16, 12.5),
+                  ("jr", "NEMOS_059", 12, 21.5),
+                  ("jr", "NEMOS_064", 14, 24.5),
+                  ("jr", "NEMOS_065", 17, 16.5),
+                  ("jr", "NEMOS_071", 12, 14.5),
+                  ("jr", "NEMOS_075", 22, 14.5),
+                  ("jr", "NEMOS_077", 21, 15.5)]
 
-working_points = [("NEMOS_0"+str(nemos_id), modes[mode]["wp"][0], modes[mode]["wp"][1], modes[mode]["stimW"]) for nemos_id in [35,49,50,58,59,64,65,71,75,77]]
+# Individual WP
+# params = [[subj, mode, g, s, r, w] for mode, subj, g, s in working_points for r in range(n_rep) for w in w_space]
 
-# working_points = [('NEMOS_035', 37, 22.5, 0.07787), # Already calculated
-#                   ('NEMOS_049', 37, 22.5, 0.07787), ## target_ACC couldn't be computed
-#                   ('NEMOS_050', 37, 22.5, 0.07787),
-#                   ('NEMOS_058', 37, 22.5, 0.07787),
-#                   ('NEMOS_059', 37, 22.5, 0.07787),
-#                   ('NEMOS_064', 37, 22.5, 0.07787), ## target_ACC couldn't be computed
-#                   ('NEMOS_065', 37, 22.5, 0.07787),
-#                   ('NEMOS_071', 37, 22.5, 0.07787),
-#                   ('NEMOS_075', 37, 22.5, 0.07787),
-#                   ('NEMOS_077', 37, 22.5, 0.07787)]
+# Common WP
+g, s, w = 15, 21.5, 0.3
+params = [[mode, subj, g, s, w] for mode, subj, _, _ in working_points]
 
 
-for emp_subj, g, s, w in working_points:
+for mode, emp_subj, g, s, w in params:
 
     ## STRUCTURE
-    conn = connectivity.Connectivity.from_file(ctb_folder + emp_subj + "_AAL2red.zip")
+    conn = connectivity.Connectivity.from_file(ctb_folder + emp_subj + "_AAL2.zip")
     conn.weights = conn.scaled_weights(mode="tract")
     # conn.weights[34, :] = 0
     # conn.weights[:, 34] = 0
@@ -72,7 +77,7 @@ for emp_subj, g, s, w in working_points:
     # conn.weights[:, 35] = 0
 
     if "cb" in mode:
-        CB_rois = [18, 19, 32, 33, 34, 35, 38, 39, 40, 41, 42, 43, 44, 45, 62, 63, 64, 65, 70, 71, 76, 77]
+        CB_rois = []
         conn.weights = conn.weights[:, CB_rois][CB_rois]
         conn.tract_lengths = conn.tract_lengths[:, CB_rois][CB_rois]
         conn.region_labels = conn.region_labels[CB_rois]
@@ -146,7 +151,7 @@ for emp_subj, g, s, w in working_points:
             ## electric field; electrodes placed @ P3P4 to stimulate precuneus
             # weighting = np.loadtxt(ctb_folder + 'CurrentPropagationModels/' + emp_subj + '-roast_P3P4Model_ef_mag-AAL2red.txt') * w
             ## Focal stimulation on ACC electric field;
-            weighting = np.loadtxt(ctb_folder + 'CurrentPropagationModels/' + emp_subj + '-ACC_target_ef_mag-AAL2red.txt') * w
+            weighting = np.loadtxt(glob.glob(ctb_folder + 'CurrentPropagationModels/' + emp_subj + '-efnorm_mag-' + stimulation + '*-AAL2.txt')[0], delimiter=",") * w
             if "cb" in mode:
                 weighting = weighting[CB_rois]
 
@@ -177,12 +182,14 @@ for emp_subj, g, s, w in working_points:
             else:
                 raw_data = output[0][1][transient:, 0, :, 0].T
 
-            raw_data = raw_data[:, rois]
+            raw_data = raw_data[rois, :]
             raw_time = output[0][0][transient:]
 
+            regionLabels = conn.region_labels[rois]
             # Fourier Analysis plot
             # FFTplot(raw_data, simLength-transient, regionLabels, main_folder, mode="html")
-            fft_peaks = multitapper(raw_data, simLength - transient)[2]
+            fft_peaks = multitapper(raw_data, samplingFreq, regionLabels, peaks=True)[2]
+            print(fft_peaks)
 
             ##########
             ### Measure functional connectivity between regions of interest : line 81 - rois
@@ -238,7 +245,7 @@ for emp_subj, g, s, w in working_points:
 
     ## PLOTTING v2
     df_fc_avg = df_fc.groupby("stimFreq").mean()
-    fft_avg = df_fft.groupby(["stimFreq"])[["stimFreq", "ACC_L", "ACC_R", "Precuneus_L", "Precuneus_R"]].mean()
+    fft_avg = df_fft.groupby(["stimFreq"])[["stimFreq", "Cingulate_Ant_L", "Cingulate_Ant_R", "Precuneus_L", "Precuneus_R"]].mean()
 
     # Plot FC ACC-Pr by stim
     for i, rel in enumerate(rel_labels):
@@ -268,8 +275,8 @@ for emp_subj, g, s, w in working_points:
         # Plot FFT peak by stim
         fig_fft = go.Figure()
 
-        fig_fft.add_trace(go.Scatter(x=fft_avg.stimFreq, y=fft_avg.ACC_L, name="ACC_L - ef_mag = " + str(round(weighting[rois[0]], 5))))
-        fig_fft.add_trace(go.Scatter(x=fft_avg.stimFreq, y=fft_avg.ACC_R, name="ACC_R - ef_mag = " + str(round(weighting[rois[1]], 5))))
+        fig_fft.add_trace(go.Scatter(x=fft_avg.stimFreq, y=fft_avg.Cingulate_Ant_L, name="ACC_L - ef_mag = " + str(round(weighting[rois[0]], 5))))
+        fig_fft.add_trace(go.Scatter(x=fft_avg.stimFreq, y=fft_avg.Cingulate_Ant_R, name="ACC_R - ef_mag = " + str(round(weighting[rois[1]], 5))))
         fig_fft.add_trace(go.Scatter(x=fft_avg.stimFreq, y=fft_avg.Precuneus_L, name="Precuneus_L - ef_mag = " + str(round(weighting[rois[2]], 5))))
         fig_fft.add_trace(go.Scatter(x=fft_avg.stimFreq, y=fft_avg.Precuneus_R, name="Precuneus_R - ef_mag = " + str(round(weighting[rois[3]], 5))))
 

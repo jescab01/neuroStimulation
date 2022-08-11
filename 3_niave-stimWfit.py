@@ -9,29 +9,17 @@ import pandas as pd
 from tvb.simulator.lab import *
 
 import sys
-
 sys.path.append("E:\\LCCN_Local\PycharmProjects\\")  # temporal append
 from toolbox.fft import multitapper
 from toolbox.fc import PLV
 from toolbox.signals import epochingTool
 from tvb.simulator.models.jansen_rit_david_mine import JansenRitDavid2003_N
 
-import multiprocessing
-from joblib import Parallel, delayed
-from tqdm import tqdm
-
 import plotly.graph_objects as go
 import plotly.io as pio
 import plotly.express as px
 
-# from mountParallel_stimWfit import collectData, boxPlot, lines3dFFT
-
-# Set up parallelization
-# try:
-#     num_cores = int(os.environ["SLURM_JOB_CPUS_PER_NODE"])
-# except KeyError:
-#     num_cores = multiprocessing.cpu_count() - 1
-
+# coge el baseline y guarda los puntos y las medias baseline
 
 params = {"jrd": {"g": 45, "s": 3.5, "model_id": ".2003JansenRitDavid", "init_w": 0.0001, "learning_rate": 1e-3},
           "cb": {"g": 60, "s": 5.5, "model_id": ".1995JansenRit", "init_w": 0.5, "learning_rate": 1e-3},
@@ -40,7 +28,6 @@ params = {"jrd": {"g": 45, "s": 3.5, "model_id": ".2003JansenRitDavid", "init_w"
 
 mode = "jr"  # "jrd"; "cb"; "jrdcb"
 
-model_id = params[mode]["model_id"]
 # working_points = [("NEMOS_0"+str(i), params[mode]["g"], params[mode]["s"]) for i in [35, 49, 50, 58, 59, 64, 65, 71, 75, 77]]
 working_points = ['NEMOS_AVG', params[mode]["g"], params[mode]["s"]]
 

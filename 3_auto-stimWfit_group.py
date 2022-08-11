@@ -10,15 +10,12 @@ from tvb.simulator.lab import *
 
 import sys
 
-sys.path.append("D:\\Users\Jesus CabreraAlvarez\PycharmProjects\\")  # temporal append
+sys.path.append("E:\\LCCN_Local\PycharmProjects\\")  # temporal append
 from toolbox.fft import multitapper
 from toolbox.fc import PLV
 from toolbox.signals import epochingTool
-from jansen_rit_david_mine import JansenRitDavid2003_N
+from tvb.simulator.models.jansen_rit_david_mine import JansenRitDavid2003_N
 
-import multiprocessing
-from joblib import Parallel, delayed
-from tqdm import tqdm
 
 import plotly.graph_objects as go
 import plotly.io as pio
@@ -33,20 +30,31 @@ import plotly.express as px
 #     num_cores = multiprocessing.cpu_count() - 1
 
 
-params = {"jr": {"g": 18, "s": 20.5, "model_id": ".1995JansenRit", "init_w": 0.1, "learning_rate": 5e-3},
+params = {"jr": {"g": 15, "s": 21.5, "model_id": ".1995JansenRit", "init_w": 0.5, "learning_rate": 1e-3},
           "jrd": {"g": 105, "s": 5.5, "model_id": ".2003JansenRitDavid", "init_w": 0.00005, "learning_rate": 1e-3},
           "cb": {"g": 78, "s": 5.5, "model_id": ".1995JansenRit", "init_w": 0.0005, "learning_rate": 1e-3},
           "jrdcb": {"g": 100, "s": 2.5, "model_id": ".2003JansenRitDavid", "init_w": 0.0005, "learning_rate": 1e-3}}
 
-mode = "cb"  # "jrd"; "cb"; "jrdcb"
+mode = "jr"  # "jrd"; "cb"; "jrdcb"
 
 model_id = params[mode]["model_id"]
 working_points = [("NEMOS_0"+str(i), params[mode]["g"], params[mode]["s"]) for i in [35, 49, 50, 58, 59, 64, 65, 71, 75, 77]]
 
+# working_points = [("NEMOS_035", 17, 12.5),  # JR
+#                   ("NEMOS_049", 115, 2.5),
+#                   ("NEMOS_050", 16, 13.5),
+#                   ("NEMOS_058", 16, 12.5),
+#                   ("NEMOS_059", 12, 21.5),
+#                   ("NEMOS_064", 14, 24.5),
+#                   ("NEMOS_065", 17, 16.5),
+#                   ("NEMOS_071", 12, 14.5),
+#                   ("NEMOS_075", 22, 14.5),
+#                   ("NEMOS_077", 21, 15.5)]
+
 
 ## Folder structure - Local
 wd = os.getcwd()
-ctb_folder = "D:\\Users\Jesus CabreraAlvarez\PycharmProjects\\brainModels\\CTB_data2\\"
+ctb_folder = "E:\\LCCN_Local\PycharmProjects\CTB_data2\\"
 
 main_folder = wd + "\\" + "PSE"
 if os.path.isdir(main_folder) == False:
@@ -77,41 +85,44 @@ for wp in working_points:
 
     n_rep = 10
 
-    conn = connectivity.Connectivity.from_file(ctb_folder + emp_subj + "_AAL.zip")
+    conn = connectivity.Connectivity.from_file(ctb_folder + emp_subj + "_AAL2.zip")
     conn.weights = conn.scaled_weights(mode="tract")
 
     # Define regions implicated in Functional analysis: remove  Cerebelum, Thalamus, Caudate (i.e. subcorticals)
-    cortical_rois = ['Precentral_L', 'Precentral_R', 'Frontal_Sup_L', 'Frontal_Sup_R',
-                     'Frontal_Sup_Orb_L', 'Frontal_Sup_Orb_R', 'Frontal_Mid_L', 'Frontal_Mid_R',
-                     'Frontal_Mid_Orb_L', 'Frontal_Mid_Orb_R',
+    cortical_rois = ['Precentral_L', 'Precentral_R', 'Frontal_Sup_2_L',
+                     'Frontal_Sup_2_R', 'Frontal_Mid_2_L', 'Frontal_Mid_2_R',
                      'Frontal_Inf_Oper_L', 'Frontal_Inf_Oper_R', 'Frontal_Inf_Tri_L',
-                     'Frontal_Inf_Tri_R', 'Frontal_Inf_Orb_L', 'Frontal_Inf_Orb_R',
+                     'Frontal_Inf_Tri_R', 'Frontal_Inf_Orb_2_L', 'Frontal_Inf_Orb_2_R',
                      'Rolandic_Oper_L', 'Rolandic_Oper_R', 'Supp_Motor_Area_L',
                      'Supp_Motor_Area_R', 'Olfactory_L', 'Olfactory_R',
                      'Frontal_Sup_Medial_L', 'Frontal_Sup_Medial_R',
                      'Frontal_Med_Orb_L', 'Frontal_Med_Orb_R', 'Rectus_L', 'Rectus_R',
-                     'Insula_L', 'Insula_R', 'Cingulum_Ant_L', 'Cingulum_Ant_R',
-                     'Cingulum_Mid_L', 'Cingulum_Mid_R', 'Cingulum_Post_L',
-                     'Cingulum_Post_R', 'Hippocampus_L', 'Hippocampus_R',
-                     'ParaHippocampal_L', 'ParaHippocampal_R', 'Amygdala_L',
-                     'Amygdala_R', 'Calcarine_L', 'Calcarine_R', 'Cuneus_L', 'Cuneus_R',
-                     'Lingual_L', 'Lingual_R', 'Occipital_Sup_L', 'Occipital_Sup_R',
-                     'Occipital_Mid_L', 'Occipital_Mid_R', 'Occipital_Inf_L',
-                     'Occipital_Inf_R', 'Fusiform_L', 'Fusiform_R', 'Postcentral_L',
-                     'Postcentral_R', 'Parietal_Sup_L', 'Parietal_Sup_R',
-                     'Parietal_Inf_L', 'Parietal_Inf_R', 'SupraMarginal_L',
-                     'SupraMarginal_R', 'Angular_L', 'Angular_R', 'Precuneus_L',
-                     'Precuneus_R', 'Paracentral_Lobule_L', 'Paracentral_Lobule_R', 'Heschl_L', 'Heschl_R',
+                     'OFCmed_L', 'OFCmed_R', 'OFCant_L', 'OFCant_R', 'OFCpost_L',
+                     'OFCpost_R', 'OFClat_L', 'OFClat_R', 'Insula_L', 'Insula_R',
+                     'Cingulate_Ant_L', 'Cingulate_Ant_R', 'Cingulate_Mid_L',
+                     'Cingulate_Mid_R', 'Cingulate_Post_L', 'Cingulate_Post_R',
+                     'Hippocampus_L', 'Hippocampus_R', 'ParaHippocampal_L',
+                     'ParaHippocampal_R', 'Calcarine_L',
+                     'Calcarine_R', 'Cuneus_L', 'Cuneus_R', 'Lingual_L', 'Lingual_R',
+                     'Occipital_Sup_L', 'Occipital_Sup_R', 'Occipital_Mid_L',
+                     'Occipital_Mid_R', 'Occipital_Inf_L', 'Occipital_Inf_R',
+                     'Fusiform_L', 'Fusiform_R', 'Postcentral_L', 'Postcentral_R',
+                     'Parietal_Sup_L', 'Parietal_Sup_R', 'Parietal_Inf_L',
+                     'Parietal_Inf_R', 'SupraMarginal_L', 'SupraMarginal_R',
+                     'Angular_L', 'Angular_R', 'Precuneus_L', 'Precuneus_R',
+                     'Paracentral_Lobule_L', 'Paracentral_Lobule_R', 'Heschl_L', 'Heschl_R',
                      'Temporal_Sup_L', 'Temporal_Sup_R', 'Temporal_Pole_Sup_L',
                      'Temporal_Pole_Sup_R', 'Temporal_Mid_L', 'Temporal_Mid_R',
-                     'Temporal_Pole_Mid_L', 'Temporal_Pole_Mid_R', 'Temporal_Inf_L', 'Temporal_Inf_R']
-    cingulum_rois = ['Frontal_Sup_Medial_L', 'Frontal_Sup_Medial_R',
-                     'Insula_L', 'Insula_R', 'Cingulum_Ant_L', 'Cingulum_Ant_R',
-                     'Cingulum_Post_L', 'Cingulum_Post_R', 'Hippocampus_L', 'Hippocampus_R',
-                     'ParaHippocampal_L', 'ParaHippocampal_R', 'Amygdala_L',
-                     'Amygdala_R', 'Parietal_Sup_L', 'Parietal_Sup_R',
-                     'Parietal_Inf_L', 'Parietal_Inf_R', 'Precuneus_L',
-                     'Precuneus_R', 'Thalamus_L', 'Thalamus_R']
+                     'Temporal_Pole_Mid_L', 'Temporal_Pole_Mid_R', 'Temporal_Inf_L',
+                     'Temporal_Inf_R']
+    cingulum_rois = ['Frontal_Mid_2_L', 'Frontal_Mid_2_R',
+                     'Insula_L', 'Insula_R',
+                     'Cingulate_Ant_L', 'Cingulate_Ant_R', 'Cingulate_Post_L', 'Cingulate_Post_R',
+                     'Hippocampus_L', 'Hippocampus_R', 'ParaHippocampal_L',
+                     'ParaHippocampal_R', 'Amygdala_L', 'Amygdala_R',
+                     'Parietal_Sup_L', 'Parietal_Sup_R', 'Parietal_Inf_L',
+                     'Parietal_Inf_R', 'Precuneus_L', 'Precuneus_R',
+                     'Thalamus_L', 'Thalamus_R']
 
     # load text with FC rois; check if match SC
     FClabs = list(np.loadtxt(ctb_folder + "FCrms_" + emp_subj + "/roi_labels_rms.txt", dtype=str))
@@ -231,6 +242,8 @@ baselineAAL["band_module"] = baselineAAL["band_module"] / normalization_factor
 baselineAAL_subj = baselineAAL.groupby('subject').mean()
 baselineAAL_group = baselineAAL_subj.mean()
 
+
+
 ### Second Block (40s per round)
 ## Optimization for top and optimal w value; sort of ML approach
 secondBlock = [["top-up W", 45],  # The maximum alpha rise I want to plot
@@ -243,12 +256,12 @@ for j, sB in enumerate(secondBlock):
     # Reset variables: peakRise, repetition (at least 3 rounds with alpha rise in the desired range),
     # index_Wspace, rise_target-rise, sim_group number
     r, n = 0, 0  # To count simulations
-    rise, cost = 0, 0  # To perform descent
+    rise_avg, cost = 0, 0  # To perform descent
     lr = params[mode]["learning_rate"] * params[mode]["init_w"]  # learning_rate based on w magnitude
 
     tic = time.time()
     print("   OPTIMIZATION for " + name)
-    while rise_avg < target_rise - 5 or rise_avg > target_rise + 5 or r < 3:
+    while rise_avg < target_rise - 5 or rise_avg > target_rise + 5 or round < 3:
         tic0 = time.time()
         n = n + 1
 
@@ -275,7 +288,7 @@ for j, sB in enumerate(secondBlock):
 
             # electric field * orthogonal to surface
             weighting = np.loadtxt(
-                ctb_folder + 'CurrentPropagationModels/' + emp_subj + '-efnorm_mag-roast_OzCzModel-AAL.txt') * w
+                ctb_folder + 'CurrentPropagationModels/' + emp_subj + '-efnorm_mag-roast_OzCzModel-AAL2.txt', delimiter=",") * w
             if "cb" in mode:
                 weighting = weighting[SC_cb_idx]
 
@@ -296,7 +309,7 @@ for j, sB in enumerate(secondBlock):
             sim.configure()
             fft_peaks_hzAAL, fft_peaks_modulesAAL, fft_band_modulesAAL = [], [], []
 
-            for r in range(3):
+            for rep in range(1):
                 output = sim.run(simulation_length=simLength)
                 # Extract data cutting initial transient
                 if "jrd" in mode:
@@ -328,16 +341,18 @@ for j, sB in enumerate(secondBlock):
 
         rise_avg = np.average(temp_secondBlockAAL.percent)
         if target_rise - 5 < rise_avg < target_rise + 5:
-            r = r + 1
+            round = round + 1
             cost = 0
         else:
-            r = 0
+            round = 0
             cost = rise_avg - target_rise
 
         print("w = %0.9f - round = %i  |  RISE = %0.2f; sim number = %i\nLOOP ROUND REQUIRED %0.4f min." % (
-            w, r, rise_avg, n, (time.time() - tic0) / 60), end="\r")
+            w, round, rise_avg, n, (time.time() - tic0) / 60), end="\r")
     secondBlock[j].append(w)  # keep weight value for next block
     print("\n\nWHOLE BLOCK (%s) REQUIRED %0.4f min.\n\n" % (name, (time.time() - tic) / 60,))
+
+
 
 ### Third Block (~3h):
 ## Gather an optimized range of data for plotting.
@@ -370,7 +385,7 @@ for i, w in enumerate(w_space):
 
             # electric field * orthogonal to surface
             weighting = np.loadtxt(
-                ctb_folder + 'CurrentPropagationModels/' + emp_subj + '-efnorm_mag-roast_OzCzModel-AAL.txt') * w
+                ctb_folder + 'CurrentPropagationModels/' + emp_subj + '-efnorm_mag-roast_OzCzModel-AAL2.txt', delimiter=",") * w
             if "cb" in mode:
                 weighting = weighting[SC_cb_idx]
 

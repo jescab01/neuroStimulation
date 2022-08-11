@@ -9,7 +9,7 @@ import plotly.express as px
 
 # emp_subj="NEMOS_035"  # "NEMOS_0"+str(i)
 #
-# specific_folder = "D:\\Users\Jesus CabreraAlvarez\PycharmProjects\\brainModels\stimulationCollab\NEMOS_fitW\PSE\PSEp_fittingW-" + emp_subj + ".1995JansenRitm06d29y2021\\"
+# specific_folder = "D:\\Users\Jesus CabreraAlvarez\PycharmProjects\\brainModels\stimulationCollab\1stimWeight_Fitting\PSE\PSEp_fittingW-" + emp_subj + ".1995JansenRitm06d29y2021\\"
 
 def collectData(specific_folder):
 
