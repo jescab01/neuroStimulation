@@ -956,8 +956,8 @@ size = weights_norm * (range_size[1]-range_size[0]) + (range_size[0] - np.min(we
 stats.pearsonr(delta_fft, abs(ef_mag_avg[SC_cortex_idx]))
 
 
-hovertext=[roi + "<br>" + str(round(ef_mag_avg[i],5)) +
-           " - (mV/mm) Electric field input<br>" + str(round(weights_norm[i],3)) +
+hovertext=[roi + "<br>" + str(round(ef_mag_avg[i], 5)) +
+           " - (mV/mm) Electric field input<br>" + str(round(weights_norm[i], 3)) +
            " - Normalized node strength" for i, roi in enumerate(regionLabels)]
 
 ## PLOT

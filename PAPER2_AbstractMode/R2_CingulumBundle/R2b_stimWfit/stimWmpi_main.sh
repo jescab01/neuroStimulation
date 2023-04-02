@@ -2,8 +2,8 @@
 ##----------------------- Start job description -----------------------
 #SBATCH --partition=standard
 #SBATCH --job-name=stimWfit_v2
-#SBATCH --ntasks=300
-#SBATCH --time=03:00:00
+#SBATCH --ntasks=100
+#SBATCH --time=03:30:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=F_r_e@hotmail.es
 #SBATCH --error=logs/err-%j.log

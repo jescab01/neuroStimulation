@@ -12,7 +12,7 @@ https://mpitutorial.com/tutorials/mpi-broadcast-and-collective-communication/
 execute in terminal with : mpiexec -n 4 python stimWmpi_main.py
 """
 
-name = "stimWfit_prebif"
+
 
 # get number of processors and processor rank
 comm = MPI.COMM_WORLD
@@ -20,6 +20,7 @@ size = comm.Get_size()
 rank = comm.Get_rank()
 
 ### STAGE 1: get baseline
+mode, sigma = "stimWfit_cb_indiv", 0.11
 
 ## Define param combinations
 # Common simulation requirements
@@ -29,30 +30,19 @@ rank = comm.Get_rank()
 n_rep = 30
 w_space = [0]  # Computing baseline
 
-working_points = [("jr", "NEMOS_035", 6, 23.5),  # JR pass @ 10/06/2022
-                  ("jr", "NEMOS_049", 8, 17.5),  # manipulated: original 49, 20.5 - the only wp out of limit cycle
-                  ("jr", "NEMOS_050", 17, 24.5),
-                  ("jr", "NEMOS_058", 17, 18.5),
-                  ("jr", "NEMOS_059", 5, 11.5),
-                  ("jr", "NEMOS_064", 5, 24.5),
-                  ("jr", "NEMOS_065", 5, 24.5),
-                  ("jr", "NEMOS_071", 10, 22.5),
-                  ("jr", "NEMOS_075", 6, 24.5),
-                  ("jr", "NEMOS_077", 8, 21.5)]
+working_points = [("NEMOS_035", 27),  # JR pass @ 27/03/2023
+                  ("NEMOS_049", 28),
+                  ("NEMOS_050", 42),
+                  ("NEMOS_058", 50),
+                  ("NEMOS_059", 36),
+                  ("NEMOS_064", 39),
+                  ("NEMOS_065", 37),
+                  ("NEMOS_071", 36),
+                  ("NEMOS_075", 48),
+                  ("NEMOS_077", 38)]
 
 # Individual WP
-if 'ind' in name:
-    params = [[subj, mode, g, s, r, w] for mode, subj, g, s in working_points for r in range(n_rep) for w in w_space]
-
-# Common WP
-elif 'common' in name:
-    g, s = 16, 21.5
-    params = [[subj, mode, g, s, r, w] for mode, subj, _, _ in working_points for r in range(n_rep) for w in w_space]
-
-elif 'prebif' in name:
-    g, s = 2, 15.5
-    params = [[subj, "prebif", g, s, r, w] for _, subj, _, _ in working_points for r in range(n_rep) for w in w_space]
-
+params = [[subj, mode, g, sigma, r, w] for subj, g in working_points for r in range(n_rep) for w in w_space]
 
 params = np.asarray(params, dtype=object)
 n = params.shape[0]
@@ -95,8 +85,9 @@ elif rank == 0:  ## MASTER PROCESS _receive, merge and save results
             baseline_results = np.vstack((baseline_results, tmp))  # add the received results to the final results
 
     ## Average to obtain baseline
-    baseline_results = pd.DataFrame(baseline_results, columns=["Subject", "Mode", "G", "speed", "rep", "w", "IAF", "module", "bModule"])
-    baseline_subj = np.asarray(baseline_results.groupby("Subject")[["IAF", "module", "bModule"]].mean().reset_index())
+    baseline_results = pd.DataFrame(baseline_results, columns=["subject", "mode", "coup", "trial", "w",
+                                                               "fpeak", "amp_fpeak", "amp_fbase"])
+    baseline_subj = np.asarray(baseline_results.groupby("subject")[["fpeak", "amp_fpeak", "amp_fbase"]].mean().reset_index())
 
 ## Synch: wait for all ranks, we cant allow ranks to advance rank0 before being able to bcast baseline.
 comm.Barrier()
@@ -108,20 +99,10 @@ baseline_subj = comm.bcast(baseline_subj, root=0)
 print("STAGE2")
 ## Define param combinations
 # Common simulation requirements
-w_space = [0] + list(np.logspace(-8, -2, 50))
+w_space = [0] + list(np.linspace(0.1, 1, 50)) # list(np.logspace(-3, 0, 50))
 
 # Individual WP
-if 'ind' in name:
-    params = [[subj, mode, g, s, r, w] for mode, subj, g, s in working_points for r in range(n_rep) for w in w_space]
-
-# Common WP
-elif 'common' in name:
-    params = [[subj, mode, g, s, r, w] for mode, subj, _, _ in working_points for r in range(n_rep) for w in w_space]
-
-elif 'prebif' in name:
-    g, s = 2, 15.5
-    params = [[subj, "prebif", g, s, r, w] for _, subj, _, _ in working_points for r in range(n_rep) for w in w_space]
-
+params = [[subj, mode, g, sigma, r, w] for subj, g in working_points for r in range(n_rep) for w in w_space]
 
 params = np.asarray(params, dtype=object)
 n = params.shape[0]
@@ -158,7 +139,8 @@ else:  ## MASTER PROCESS _receive, merge and save results
 
             final_results = np.vstack((final_results, tmp))  # add the received results to the final results
 
-    fResults_df = pd.DataFrame(final_results, columns=["Subject", "Mode", "G", "speed", "rep", "w", "IAF", "module", "bModule"])
+    fResults_df = pd.DataFrame(final_results, columns=["subject", "mode", "coup", "trial", "w",
+                                                               "fpeak", "amp_fpeak", "amp_fbase"])
 
     ## Save resutls
     ## Folder structure - Local
@@ -168,7 +150,7 @@ else:  ## MASTER PROCESS _receive, merge and save results
         main_folder = wd + "\\" + "PSE"
         if os.path.isdir(main_folder) == False:
             os.mkdir(main_folder)
-        specific_folder = main_folder + "\\PSEmpi_" + name + "-" + time.strftime("m%md%dy%Y-t%Hh.%Mm.%Ss")
+        specific_folder = main_folder + "\\PSEmpi_" + mode + "-" + time.strftime("m%md%dy%Y-t%Hh.%Mm.%Ss")
 
         if os.path.isdir(specific_folder) == False:
             os.mkdir(specific_folder)
@@ -183,7 +165,7 @@ else:  ## MASTER PROCESS _receive, merge and save results
 
         os.chdir(main_folder)
 
-        specific_folder = "PSEmpi_" + name + "-" + time.strftime("m%md%dy%Y-t%Hh.%Mm.%Ss")
+        specific_folder = "PSEmpi_" + mode + "-" + time.strftime("m%md%dy%Y-t%Hh.%Mm.%Ss")
         if os.path.isdir(specific_folder) == False:
             os.mkdir(specific_folder)
 

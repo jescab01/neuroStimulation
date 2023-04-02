@@ -19,7 +19,7 @@ fname = "PSEmpi_entrainment_bySC_indWPpass-m06d11y2022-t21h.59m.16s"
 results = pd.read_csv("E:\\LCCN_Local\PycharmProjects\\neuroStimulation\\3entrainment_bySC\PSE\\" + fname + "\entrainment_bySC_results.csv")
 df_ent_bySC = pd.read_csv("E:\\LCCN_Local\PycharmProjects\\neuroStimulation\\3entrainment_bySC\PSE\\"+ fname + "\entrainment_bySC_10subjs.csv")
 
-ctb_folder = "E:\LCCN_Local\PycharmProjects\\CTB_data2\\"
+ctb_folder = "E:\LCCN_Local\PycharmProjects\\CTB_dataOLD2\\"
 conn = connectivity.Connectivity.from_file(ctb_folder + "NEMOS_AVG_AAL2_pass.zip")
 regionLabels = conn.region_labels
 
@@ -55,7 +55,7 @@ def entrainment_bySC_plot(results, df_ent_bySC, disconn_metric="tracts_left", lo
     fig.update_yaxes(title="Entrainment range (Hz)")
     fig.update_layout(template="plotly_white")
     pio.write_html(fig, file=figures_folder + '/ent_bySC.html', auto_open=True)
-    pio.write_image(fig, file=figures_folder + '/ent_bySC.png')
+    pio.write_image(fig, file=figures_folder + '/ent_bySC.svg')
 
 
 entrainment_bySC_plot(results, df_ent_bySC, disconn_metric="tracts_left", lowess_frac=0.15)

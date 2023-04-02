@@ -103,8 +103,8 @@ output = sim.run(simulation_length=simLength)
 raw_data = output[0][1][:, 0, :, 0].T
 raw_time = output[0][0][:]
 regionLabels = conn.region_labels
-regionLabels=list(regionLabels)
-regionLabels.insert(76,"stimulus")
+regionLabels = list(regionLabels)
+regionLabels.insert(76, "stimulus")
 
 # average signals to obtain mean signal frequency peak
 data = np.concatenate((raw_data, stimulus.temporal_pattern), axis=0)  # concatenate mean signal: data[0]; with raw_data: data[1:end]

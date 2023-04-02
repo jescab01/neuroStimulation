@@ -176,6 +176,7 @@ for connectome in stimulate_indexes.keys():
                 # pli = PLI(efPhase)
                 # fname = ctb_folder+model_id+"\\"+bands[0][b]+"pli.txt"
                 # np.savetxt(fname, pli)
+
                 plv_target.append(newRow_t + list(plv[stimulate_indexes[connectome][0]]))
                 fft_target.append(newRow_t + list(fft_peaks))
                 plv_control.append(newRow_c + list(plv[control_idx][0]))

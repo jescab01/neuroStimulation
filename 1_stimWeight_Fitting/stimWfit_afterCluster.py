@@ -8,7 +8,7 @@ from plotly.subplots import make_subplots
 import plotly.express as px
 import glob
 
-fname = "PSEmpi_stimWfit_indWPpass-C3Ndata-m06d11y2022-t11h.15m.31s"
+fname = "PSEmpi_stimWfit_prebif-m11d08y2022-t16h.21m.58s"
 specific_folder = "E:\\LCCN_Local\PycharmProjects\\neuroStimulation\\1_stimWeight_Fitting\PSE\\" + fname
 
 # cargar los datos
@@ -28,7 +28,7 @@ fig = px.scatter(resultsAAL, x="w", y="bModule", color="Subject",
              title="Alpha peak module rise @Pareto-Occipital regions<br>(%i simulations | 10 subjects AAL)" % n_rep,
              labels={  # replaces default labels by column name
                  "w": "Weight", "band_module": "Alpha peak module"},
-             template="plotly")
+             template="plotly", log_x=True)
 pio.write_html(fig, file=specific_folder + '\\allNemosAAL_1scatterModules_alphaRise_' + str(n_rep) + "sim.html",
                auto_open=True)
 
@@ -36,7 +36,7 @@ fig = px.box(resultsAAL, x="w", y="percent",
              title="Alpha peak module rise @Pareto-Occipital regions<br>(%i simulations | 10 subjects AAL)" % n_rep,
              labels={  # replaces default labels by column name
                  "w": "Weight", "percent": "Percentage of alpha rise"},
-             template="plotly")
+             template="plotly", log_x=True)
 pio.write_html(fig, file=specific_folder + '\\allNemosAAL_2boxpercent_alphaRise_' + str(n_rep) + "sim.html",
                auto_open=True)
 
@@ -44,12 +44,12 @@ fig = px.box(resultsAAL, x="w", y="percent", color="Subject",
              title="Alpha peak module rise @Pareto-Occipital regions<br>(%i simulations | 10 subjects AAL)" % n_rep,
              labels={  # replaces default labels by column name
                  "w": "Weight", "percent": "Percentage of alpha rise"},
-             template="plotly")
+             template="plotly", log_x=True)
 pio.write_html(fig, file=specific_folder + '\\allNemosAAL_3disgregboxpercent_alphaRise_' + str(n_rep) + "sim.html",
                auto_open=True)
 
 # Scatter plot with mean and median
-fig = px.scatter(resultsAAL, x="w", y="percent", color="Subject")
+fig = px.scatter(resultsAAL, x="w", y="percent", color="Subject", log_x=True)
 
 w = np.asarray(resultsAAL.groupby("w").mean().reset_index()["w"])
 mean = np.asarray(resultsAAL.groupby("w").mean()["percent"])
@@ -61,6 +61,10 @@ pio.write_html(fig, file=specific_folder + '\\allNemosAAL_4scatterpercent_alphaR
                auto_open=True)
 
 
+
+# a = resultsAAL[(resultsAAL["w"]==0)|(resultsAAL["w"]==1e-8)]
+# fig=px.scatter(resultsAAL, x="w", y="percent", log_x=True)
+# fig.show("browser")
 # deprecated
 # def boxPlot_stimWfit(df_ar, emp_subj, specific_folder,  n_simulations):
 #

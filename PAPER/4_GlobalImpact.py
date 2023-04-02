@@ -5,6 +5,7 @@ import os
 import plotly.graph_objects as go
 import plotly.io as pio
 import statsmodels.genmod.families
+import plotly.figure_factory as ff
 from plotly.subplots import make_subplots
 import plotly.express as px
 import glob
@@ -17,7 +18,7 @@ from tvb.simulator.lab import *
 import pickle
 from scipy import stats
 
-ctb_folder = "E:\LCCN_Local\PycharmProjects\\CTB_data2\\"
+ctb_folder = "E:\LCCN_Local\PycharmProjects\\CTB_dataOLD2\\"
 conn = connectivity.Connectivity.from_file(ctb_folder + "NEMOS_AVG_AAL2_pass.zip")
 
 ## Load simulated data - baseline vs stim simulations
@@ -35,7 +36,41 @@ plv_stimulated_avg = np.average(np.asarray([subject[3] for subject in wn_impact_
 
 ef_mag_avg = np.average(np.asarray([subject[4] for subject in wn_impact_results]), axis=0)
 
+## Simple measure of FC polarization: mean+std of both conditions
+import pingouin as pg
+plv_baseline_std = np.asarray([np.std(subject[1]) for subject in wn_impact_results])
+plv_stimulated_std = np.asarray([np.std(subject[3]) for subject in wn_impact_results])
 
+plv_baseline_m = np.asarray([np.average(subject[1]) for subject in wn_impact_results])
+plv_stimulated_m = np.asarray([np.average(subject[3]) for subject in wn_impact_results])
+
+ttest_std = pg.ttest(plv_stimulated_std, plv_baseline_std, paired=True, alternative="greater")
+# Greater because we assume that it is the stimulated network the one getting extreme values.
+# Result for std: [T=1.88, dof=9, p<0.05, cohens d=0.8, power=0.79]
+ttest_m = pg.ttest(plv_stimulated_m, plv_baseline_m, paired=True, alternative="less")
+# Result for mean: [T=-5.17, dof=9, p<0.001, cohens d=1.14, power=0.95]
+
+## Plot distributions
+plv_baseline_vals = np.average(np.asarray([subject[1][np.triu_indices(len(subject[1]), 1)] for subject in wn_impact_results]), axis=0)
+plv_stimulated_vals = np.average(np.asarray([subject[3][np.triu_indices(len(subject[3]), 1)] for subject in wn_impact_results]), axis=0)
+
+ttest = pg.ttest(plv_stimulated_vals, plv_baseline_vals, paired=True, alternative="less")
+
+# fig = ff.create_distplot([plv_baseline_vals, plv_stimulated_vals], ["baseline", "stimulated"], bin_size=0.025)
+# fig.update_layout(title="Phase locking values distribution for the average of 10 simulated virtual brains")
+# fig.show("browser")
+
+deltas = np.array(plv_stimulated_vals - plv_baseline_vals)
+
+fig = ff.create_distplot([deltas], ["deltas fc"], bin_size=0.005)
+fig.update_layout(title="delta of Phase locking values for the average of 10 simulated virtual brains")
+fig.show("browser")
+
+# percentages of reduce, higher and stable
+len(deltas[deltas < -0.1])/len(deltas)  # 47%
+len(deltas[(deltas > -0.1) & (deltas < 0.1)])/len(deltas)  # 52%
+len(deltas[deltas > 0.1])/len(deltas)  # <1% 0.46%
+len(deltas[deltas > 0.1])
 
 # Preparation of Just cortical labels and indexing
 # Define regions implicated in Functional analysis: remove  Cerebelum, Thalamus, Caudate (i.e. subcorticals)
@@ -101,7 +136,7 @@ fig.update_layout(legend=dict(orientation="h", y=0.25, x=0.05), template="plotly
                   xaxis=dict(tickangle=45), xaxis2=dict(tickangle=45), xaxis3=dict(tickangle=45), height=750, width=950)
 
 pio.write_html(fig, file=figures_folder + '/wholeNetwork_impact.html', auto_open=True)
-pio.write_image(fig, file=figures_folder + '/wholeNetwork_impact.png')
+pio.write_image(fig, file=figures_folder + '/wholeNetwork_impact.svg')
 
 
 
@@ -197,7 +232,7 @@ fig.update_layout(xaxis=dict(title="|Electric field input| (mV/mm)"), yaxis=dict
                   template="plotly_white", height=500, width=700)
 
 pio.write_html(fig, file=figures_folder + '/GlobalImpact_2Dscatter.html', auto_open=True)
-pio.write_image(fig, file=figures_folder + '/GlobalImpact_2Dscatter.png')
+pio.write_image(fig, file=figures_folder + '/GlobalImpact_2Dscatter.svg')
 
 
 
@@ -234,6 +269,7 @@ fig.update_layout(xaxis=dict(title="|Electric field input| (mV/mm)"), yaxis=dict
                   template="plotly_white")
 
 pio.write_html(fig, file=figures_folder + '/GlobalImpact_3Dbrain.html', auto_open=True)
+pio.write_image(fig, file=figures_folder + '/GlobalImpact_3Dbrain.svg', auto_open=True)
 
 
 
@@ -253,7 +289,7 @@ pio.write_html(fig, file=figures_folder + '/GlobalImpact_3Dbrain.html', auto_ope
 
 # PREPARE DATA
 
-ctb_folder = "E:\LCCN_Local\PycharmProjects\\CTB_data2\\"
+ctb_folder = "E:\LCCN_Local\PycharmProjects\\CTB_dataOLD2\\"
 subjects = ["NEMOS_0" + str(idx) for idx in [35, 49, 50, 58, 59, 64, 65, 71, 75, 77]]
 
 # Unpack wn_impact_results
@@ -373,8 +409,7 @@ model_robust.summary()
 
 
 
-#
-#
+
 # ## Utiliza los DATOS TIPIFICADOS: para poder comparar la importancia de las variables en la ecuación.
 # # En regresión simple el coeficiente de regresión tipificado es el coeficiente de correlación de Pearson;
 # # en regresión múltiple no lo es.

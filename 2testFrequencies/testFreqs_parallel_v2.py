@@ -6,7 +6,7 @@ import scipy
 from mne import time_frequency, filter
 
 from tvb.simulator.lab import *
-from tvb.simulator.models.jansen_rit_david_mine import JansenRitDavid2003
+from tvb.simulator.models.jansen_rit_david_mine import JansenRitDavid2003, JansenRit1995
 from mpi4py import MPI
 import datetime
 import glob
@@ -21,7 +21,7 @@ def testFreqs_parallel(params):
 
     ## Folder structure - Local
     if "LCCN_Local" in os.getcwd():
-        ctb_folder = "E:\\LCCN_Local\PycharmProjects\CTB_data2\\"
+        ctb_folder = "E:\\LCCN_Local\PycharmProjects\CTB_data3\\"
         import sys
         sys.path.append("E:\\LCCN_Local\\PycharmProjects\\")
         from toolbox.fft import multitapper, FFTpeaks
@@ -30,9 +30,13 @@ def testFreqs_parallel(params):
 
     ## Folder structure - CLUSTER
     else:
-        from toolbox import multitapper, PLV, epochingTool, FFTpeaks
         wd = "/home/t192/t192950/mpi/"
-        ctb_folder = wd + "CTB_data2/"
+        ctb_folder = wd + "CTB_data3/"
+        ctb_folderOLD = wd + "CTB_dataOLD/"
+
+        import sys
+        sys.path.append(wd)
+        from toolbox.fft import multitapper, PLV, epochingTool, FFTpeaks
 
     # Prepare simulation parameters
     simLength = 24 * 1000  # ms
@@ -109,7 +113,7 @@ def testFreqs_parallel(params):
                          'Thalamus_L', 'Thalamus_R']
 
         # load text with FC rois; check if match SC
-        FClabs = list(np.loadtxt(ctb_folder + "FCrms_" + emp_subj + "/roi_labels_rms.txt", dtype=str))
+        FClabs = list(np.loadtxt(ctb_folder + "FCavg_" + emp_subj + "/roi_labels.txt", dtype=str))
         FC_cortex_idx = [FClabs.index(roi) for roi in
                          cortical_rois]  # find indexes in FClabs that matches cortical_rois
         SClabs = list(conn.region_labels)
@@ -165,6 +169,17 @@ def testFreqs_parallel(params):
             # Remember to hold tau*H constant.
             m.He1, m.Hi1 = np.array([32.5 / m.tau_e1]), np.array([440 / m.tau_i1])
             m.He2, m.Hi2 = np.array([32.5 / m.tau_e2]), np.array([440 / m.tau_i2])
+
+        elif "prebif" in mode:
+            sigma_array = np.asarray([0.22 if 'Thal' in roi else 0 for roi in conn.region_labels])
+            p_array = np.asarray([0.15 if 'Thal' in roi else 0.09 for roi in conn.region_labels])
+
+            m = JansenRit1995(He=np.array([3.25]), Hi=np.array([22]),
+                              tau_e=np.array([10]), tau_i=np.array([20]),
+                              c=np.array([1]), c_pyr2exc=np.array([135]), c_exc2pyr=np.array([108]),
+                              c_pyr2inh=np.array([33.75]), c_inh2pyr=np.array([33.75]),
+                              p=np.array([p_array]), sigma=np.array([sigma_array]),
+                              e0=np.array([0.005]), r=np.array([0.56]), v0=np.array([6]))
 
         else:  # JANSEN-RIT
             # Parameters from Stefanovski 2019. Good working point at g=33, s=15.5 on AAL2red connectome.

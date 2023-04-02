@@ -21,7 +21,7 @@ import networkx as nx
 
 ## Working over the averaged matrices
 # Load structures
-conn = connectivity.Connectivity.from_file("E://LCCN_Local/PycharmProjects/CTB_data2/NEMOS_AVG_AAL2_pass.zip")
+conn = connectivity.Connectivity.from_file("E://LCCN_Local/PycharmProjects/CTB_dataOLD2/NEMOS_AVG_AAL2_pass.zip")
 
 matrix = conn.weights
 
@@ -218,6 +218,6 @@ fig.add_trace(go.Bar(x=temp.path_length_r.values, y=temp.index, orientation='h',
 
 fig.update_layout(template="plotly_white", barmode="relative", height=1000, width=1000)
 pio.write_html(fig, file=figures_folder + '/Network_metrics_pass.html', auto_open=True)
-pio.write_image(fig, file=figures_folder + '/Network_metrics_pass.png')
+pio.write_image(fig, file=figures_folder + '/Network_metrics_pass.svg')
 
 

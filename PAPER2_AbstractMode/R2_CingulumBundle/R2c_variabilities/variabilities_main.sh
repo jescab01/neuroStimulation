@@ -2,8 +2,8 @@
 ##----------------------- Start job description -----------------------
 #SBATCH --partition=standard
 #SBATCH --job-name=stimWfit_v2
-#SBATCH --ntasks=300
-#SBATCH --time=03:00:00
+#SBATCH --ntasks=60
+#SBATCH --time=01:30:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=F_r_e@hotmail.es
 #SBATCH --error=logs/err-%j.log
@@ -12,6 +12,6 @@
 
 module purge && module load Python/3.9.6-GCCcore-11.2.0
 
-srun python stimWmpi_main.py
+srun python variabilities_main.py
 
 
