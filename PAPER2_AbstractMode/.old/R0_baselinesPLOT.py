@@ -28,12 +28,12 @@ df_base = pd.read_pickle(main_folder + "R1c_baselines\\" + simtag + "\\nmm_resul
 df_base["plv_mean"] = [np.average(row["plv"][row["plv"]!=1]) for i, row in df_base.iterrows()]
 
 # TODO select a set of rois that are progressively disconnected (sc1>sc2>sc3...)
-rois = [ 'Precuneus_L', 'Precuneus_R','Parietal_Sup_L','Parietal_Sup_R',
+rois = [ 'Precuneus_L', 'Precuneus_R', 'Parietal_Sup_L', 'Parietal_Sup_R',
        'Frontal_Mid_2_L', 'Frontal_Mid_2_R', 'Cingulate_Ant_L', 'Cingulate_Ant_R']
 
 fig = make_subplots(rows=3, cols=2, column_titles=["Neural Mass Models", "Spiking Neural Networks"], vertical_spacing=0.2)
 cmap = px.colors.qualitative.Plotly
-width=0.2
+width = .2
 
 # 1. Single node
 df_sub = df_base.loc[(df_base["mode"] == "isolatedStim_oneNode_sigma0.11") & (df_base["node"] == "Precuneus_L")]
@@ -66,16 +66,12 @@ for i, roi in enumerate(rois):
         fig.add_trace(go.Violin(x=[name]*len(df_sub), y=df_sub["amplitude_fpeak"], name=roi, legendgroup=roi, showlegend=False, line_color=cmap[i%len(cmap)]), row=2, col=1)
         fig.add_trace(go.Violin(x=[name]*len(df_sub), y=df_sub["plv_mean"], name=roi, legendgroup=roi, showlegend=False, line_color=cmap[i%len(cmap)]), row=3, col=1)
 
-
-fig.update_layout(violinmode="group", template="plotly_white", legend=dict(orientation="h", y=-0.2),yaxis1=dict(title="Frequency (Hz)"),
+fig.update_layout(violinmode="group", template="plotly_white", height=500, width=800,
+                  legend=dict(orientation="h", y=-0.2),yaxis1=dict(title="Frequency (Hz)"),
                   yaxis3=dict(title="Power (dB)"), yaxis5=dict(title="PLV"))
-
-
 ###  TODO spiking ###
-
-
-pio.write_html(fig, main_folder + "\\R1c_baselines.html", auto_open=True)
-pio.write_image(fig, main_folder + "\\R1c_baselines.svg")
+pio.write_html(fig, main_folder + "R1c_baselines" + "\\R1c_baselines.html", auto_open=True)
+pio.write_image(fig, main_folder + "R1c_baselines" + "\\R1c_baselines.svg")
 
 
 

@@ -13,7 +13,7 @@ https://mpitutorial.com/tutorials/mpi-broadcast-and-collective-communication/
 execute in terminal with : mpiexec -n 4 python nmm_main.py
 """
 
-name = "nmm_stimAllConds"
+name = "nmm_stimCBbaseline"
 
 # get number of processors and processor rank
 comm = MPI.COMM_WORLD
@@ -21,13 +21,25 @@ size = comm.Get_size()
 rank = comm.Get_rank()
 
 ## DEFINE SIMULATION PARAMETERS
-subj, reps = "NEMOS_035", 3
+# subj, reps = "NEMOS_035", 3
+# freqs = np.arange(4, 18, 0.25)
+#
+# w_space = np.linspace(0, 500, 250)
+# # w_space = np.arange(0, 0.05, 0.001); np.linspace(0, 1, 50)
+#
+# params = [["isolatedStim_oneNode", subj, 0, sigma, r, w, f] for sigma in [0, 0.11, 0.22] for r in range(reps) for w in w_space for f in freqs] + \
+#          [["isolatedStim_twoNodes", subj, 27, 0.11, r, w, f] for r in range(reps) for w in w_space for f in freqs] + \
+#          [["isolatedStim_cb", subj, 27, 0.11, r, w, f] for r in range(reps) for w in w_space for f in freqs] + \
+#          [["isolatedStim_cb_antiphase", subj, 27, 0.11, r, w, f] for r in range(reps) for w in w_space for f in freqs]
+
+subj, reps = "NEMOS_035", 15
 freqs = np.arange(4, 18, 0.25)
 
-params = [["isolatedStim_oneNode", subj, 0, sigma, r, w, f] for sigma in [0, 0.11, 0.22] for r in range(reps) for w in np.arange(0, 0.05, 0.001) for f in freqs] + \
-         [["isolatedStim_twoNodes", subj, 27, 0.11, r, w, f] for r in range(reps) for w in np.arange(0, 0.05, 0.001) for f in freqs] + \
-         [["isolatedStim_cb", subj, 27, 0.11, r, w, f] for r in range(reps) for w in np.linspace(0, 1, 50) for f in freqs] + \
-         [["isolatedStim_cb_antiphase", subj, 27, 0.11, r, w, f] for r in range(reps) for w in np.linspace(0, 1, 50) for f in freqs]
+w_space = [0]
+
+params = [["isolatedStim_cb", subj, 27, 0.11, r, w, f] for r in range(reps) for w in w_space for f in freqs]
+
+
 
 params = np.asarray(params, dtype=object)
 n = params.shape[0]

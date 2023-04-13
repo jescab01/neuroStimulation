@@ -173,7 +173,7 @@ def stimWfit_parallel(params, baseline_subj=None):
 
         # Extract data: "output[a][b][:,0,:,0].T" where:
         # a=monitorIndex, b=(data:1,time:0) and [200:,0,:,0].T arranges channel x timepoints and to remove initial transient.
-        raw_data = output[0][1][transient:, 1, :, 0].T - output[0][1][transient:, 2, :, 0].T
+        raw_data = output[0][1][transient:, 0, :, 0].T
         regionLabels = conn.region_labels
 
         # ROIs of interest to measure alpha peak increase #i

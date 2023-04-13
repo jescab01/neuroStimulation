@@ -2,8 +2,9 @@
 ##----------------------- Start job description -----------------------
 #SBATCH --partition=standard
 #SBATCH --job-name=nmmIsoStim
-#SBATCH --ntasks=300
+#SBATCH --ntasks=400
 #SBATCH --time=08:00:00
+#SBATCH --mem-per-cpu=4G
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=F_r_e@hotmail.es
 #SBATCH --error=logs/err-%j.log

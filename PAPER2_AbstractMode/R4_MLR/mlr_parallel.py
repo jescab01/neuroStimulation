@@ -10,7 +10,8 @@ from tvb.simulator.models.jansen_rit_david_mine import JansenRit1995
 from mpi4py import MPI
 import datetime
 
-def nmm_parallel(params):
+
+def mlr_parallel(params, baseline_subj=None):
 
     datapoints = list()
 
@@ -22,7 +23,7 @@ def nmm_parallel(params):
 
     ## Folder structure - Local
     if "LCCN_Local" in os.getcwd():
-        ctb_folder = "E:\\LCCN_Local\PycharmProjects\CTB_data3\\"
+        ctb_folder = "E:\\LCCN_Local\PycharmProjects\CTB_dataOLD2\\"
         import sys
         sys.path.append("E:\\LCCN_Local\\PycharmProjects\\")
         from toolbox.fft import FFTpeaks, PSD
@@ -32,7 +33,7 @@ def nmm_parallel(params):
     ## Folder structure - CLUSTER
     else:
         wd = "/home/t192/t192950/mpi/"
-        ctb_folder = wd + "CTB_data3/"
+        ctb_folder = wd + "CTB_dataOLD2/"
         ctb_folderOLD = wd + "CTB_dataOLD/"
 
         import sys
@@ -54,7 +55,7 @@ def nmm_parallel(params):
         print("Rank %i - simulation %i / %i" % (rank, ii+1, len(params)))
         print(set)
 
-        mode, emp_subj, g, sigma, r, w, f = set
+        emp_subj, mode,  g, sigma, r, w = set
 
         # STRUCTURAL CONNECTIVITY      #########################################
 
@@ -74,7 +75,7 @@ def nmm_parallel(params):
         isolated_rois = ['Precuneus_L', 'Precuneus_R']
 
         # load text with FC rois; check if match SC
-        FClabs = list(np.loadtxt(ctb_folder + "FCavg_" + emp_subj + "/roi_labels.txt", dtype=str))
+        FClabs = list(np.loadtxt(ctb_folder + "FCrms_" + emp_subj + "/roi_labels_rms.txt", dtype=str))
         SClabs = list(conn.region_labels)
 
 
@@ -111,32 +112,42 @@ def nmm_parallel(params):
                           p=np.array([0.22]), sigma=np.array([sigma]),
                           e0=np.array([0.005]), r=np.array([0.56]), v0=np.array([6]))
 
+
         # STIMULUS ###############################
-        ## Sinusoid input
-        eqn_t = equations.Sinusoid()
-        eqn_t.parameters['amp'] = w
-        eqn_t.parameters['frequency'] = f  # Hz
-        eqn_t.parameters['onset'] = 2000  # ms
-        eqn_t.parameters['offset'] = simLength  # ms
+        if w != 0:
 
-        # Amplitud diferencial por áreas ajustada with weighting
-        if "cb" in mode:
-            weighting = np.array([1 if "Precuneus_L" == roi else -1 if ("Precuneus_R"==roi) & ("antiphase" in mode) else 0 for roi in conn.region_labels])
+            # Reconstruct DataFrame
+            baseline_subj = pd.DataFrame(baseline_subj, columns=["subject", "fpeak", "amp_fpeak", "amp_fbase"])
+            initialPeak = float(baseline_subj.loc[baseline_subj["subject"] == emp_subj].fpeak.values)
 
-        elif "Node" in mode:
-            weighting = np.array([1, 0])  # np.ones(len(conn.weights)) * w
+            ## Sinusoid input
+            eqn_t = equations.Sinusoid()
+            eqn_t.parameters['amp'] = 1  # Amplitud diferencial por áreas ajustada en stimWeights
+            eqn_t.parameters['frequency'] = initialPeak  # Hz
+            eqn_t.parameters['onset'] = 16000  # ms
+            eqn_t.parameters['offset'] = simLength  # ms
 
+            # electric field * orthogonal to surface
+            weighting = np.loadtxt(
+                ctb_folder + 'CurrentPropagationModels/' + emp_subj + '-efnorm_mag-roast_OzCzModel-AAL2.txt',
+                delimiter=",") * w
 
-        stimulus = patterns.StimuliRegion(
-            temporal=eqn_t,
-            connectivity=conn,
-            weight=weighting)
+            if "cb" in mode:
+                weighting = weighting[SC_cb_idx]
 
-        # Configure space and time
-        stimulus.configure_space()
-        stimulus.configure_time(np.arange(0, simLength, 1))
-        # And take a look
-        # plot_pattern(stimulus)
+            stimulus = patterns.StimuliRegion(
+                temporal=eqn_t,
+                connectivity=conn,
+                weight=weighting)
+
+            # Configure space and time
+            stimulus.configure_space()
+            stimulus.configure_time(np.arange(0, simLength, 1))
+            # And take a look
+            # plot_pattern(stimulus)
+
+        else:
+            initialPeak = np.nan
 
         # OTHER PARAMETERS   ###
         # integrator: dt=T(ms)=1000/samplingFreq(kHz)=1/samplingFreq(HZ)
@@ -148,21 +159,26 @@ def nmm_parallel(params):
         print("Simulating for Coupling factor = %i and sigma = %0.2f" % (g, sigma))
 
         # Run simulation
-        sim = simulator.Simulator(model=m, connectivity=conn, coupling=coup, integrator=integrator, monitors=mon,
-                                  stimulus=stimulus)
+        if w != 0:
+            sim = simulator.Simulator(model=m, connectivity=conn, coupling=coup, integrator=integrator, monitors=mon,
+                                      stimulus=stimulus)
+        else:
+            sim = simulator.Simulator(model=m, connectivity=conn, coupling=coup, integrator=integrator, monitors=mon)
 
         sim.configure()
         output = sim.run(simulation_length=simLength)
 
+
+
+        ####  BASELINE (pre-stimulation) RESULTS
+
         # Extract data: "output[a][b][:,0,:,0].T" where:
         # a=monitorIndex, b=(data:1,time:0) and [200:,0,:,0].T arranges channel x timepoints and to remove initial transient.
-
-        raw_data = output[0][1][transient:, 0, :, 0].T
+        baseline_data = output[0][1][transient:16000, 0, :, 0].T
         regionLabels = conn.region_labels
 
-
         ## Calculate IAF band power rise
-        spectra, freqs = PSD(raw_data, samplingFreq)
+        spectra, freqs = PSD(baseline_data, samplingFreq)
 
         # Pre-Filtering in freq band
         lowcut, highcut = 1, 60
@@ -177,8 +193,17 @@ def nmm_parallel(params):
         amp_fpeak05 = np.array([sum(spectra_filt[i, (freqs_filt > fp - 0.5) & (freqs_filt < fp + 0.5)]) for i, fp in enumerate(fpeak)])
 
         # Spectral amplitude at fex
-        amp_fex = spectra_filt[:, np.argmin(abs(freqs_filt - f))]
-        amp_fex05 = np.sum(spectra_filt[:, (freqs_filt > f - 0.5) & (freqs_filt < f + 0.5)], axis=1)
+        # amp_fex = spectra_filt[:, np.argmin(abs(freqs_filt - f))]
+        # amp_fex05 = np.sum(spectra_filt[:, (freqs_filt > f - 0.5) & (freqs_filt < f + 0.5)], axis=1)
+
+        if w != 0:
+            # Spectral amplitude at baseline peak
+            amp_fbase05 = np.array(
+                [sum(spectra_filt[i, (freqs_filt > initialPeak - 0.5) & (freqs_filt < initialPeak + 0.5)])
+                 for i, fp in enumerate(fpeak)])
+
+        else:
+            amp_fbase05 = [np.nan]*len(conn.region_labels)
 
         # Calculate PLV
         bands = [["3-alfa"], [(8, 12)]]
@@ -189,35 +214,100 @@ def nmm_parallel(params):
             (lowcut, highcut) = bands[1][b]
 
             # Band-pass filtering
-            filterSignals = filter.filter_data(raw_data, samplingFreq, lowcut, highcut)
-
-            # EPOCHING timeseries into x seconds windows epochingTool(signals, windowlength(s), samplingFrequency(Hz))
-            efSignals = epochingTool(filterSignals, 4, samplingFreq, "signals")
+            filterSignals = filter.filter_data(baseline_data, samplingFreq, lowcut, highcut)
 
             # Obtain Analytical signal
             efPhase = list()
             # efEnvelope = list()
 
-            for i in range(len(efSignals)):
-                analyticalSignal = scipy.signal.hilbert(efSignals[i])
+            for i in range(len(filterSignals)):
+                analyticalSignal = scipy.signal.hilbert(filterSignals[i])
                 # Get instantaneous phase and amplitude envelope by channel
                 efPhase.append(np.unwrap(np.angle(analyticalSignal)))
                 # efEnvelope.append(np.abs(analyticalSignal))
 
-            # CONNECTIVITY MEASURES
-            ## PLV
-            plv = PLV(efPhase)
-            # fname = ctb_folder+model_id+"\\"+bands[0][b]+"plv.txt"
-            # np.savetxt(fname, plv)
-
+        plv = np.ndarray((len(efPhase), len(efPhase)))
+        for channel1 in range(len(efPhase)):
+            for channel2 in range(len(efPhase)):
+                phaseDifference = efPhase[channel1] - efPhase[channel2]
+                value = abs(np.average(np.exp(1j * phaseDifference)))
+                plv[channel1, channel2] = value
 
         ## Gather results
         for ii, roi in enumerate(conn.region_labels):
 
-            roi = "stim_Precuneus_L" if roi == "Precuneus_L" else \
-                "stimAnti_Precuneus_R" if (roi == "Precuneus_R") & ("antiphase" in mode) else roi
+            datapoints.append((mode + "_sigma"+str(sigma), emp_subj, w, initialPeak, r, roi, "baseline",
+                               fpeak[ii], amp_fpeak05[ii], amp_fbase05[ii], np.average(plv[ii, plv[ii, :] != 1]), plv[ii, :]))
 
-            datapoints.append((mode + "_sigma"+str(sigma), r, roi, w, f, fpeak[ii], amp_fex05[ii], amp_fpeak05[ii], plv[ii, :]))
+
+
+        ### STIMULATION RESULTS
+
+        # Extract data: "output[a][b][:,0,:,0].T" where:
+        # a=monitorIndex, b=(data:1,time:0) and [200:,0,:,0].T arranges channel x timepoints and to remove initial transient.
+        stimulation_data = output[0][1][16000:, 0, :, 0].T
+
+        ## Calculate IAF band power rise
+        spectra, freqs = PSD(stimulation_data, samplingFreq)
+
+        # Pre-Filtering in freq band
+        lowcut, highcut = 1, 60
+        spectra_filt = spectra[:, (freqs > lowcut) & (freqs < highcut)]
+        freqs_filt = freqs[(freqs > lowcut) & (freqs < highcut)]
+
+        # Peak
+        fpeak = freqs_filt[np.argmax(spectra_filt, axis=1)]
+
+        # Spectral amplitude at peak
+        # amp_fpeak = np.max(spectra_filt, axis=1)
+        amp_fpeak05 = np.array([sum(spectra_filt[i, (freqs_filt > fp - 0.5) & (freqs_filt < fp + 0.5)]) for i, fp in enumerate(fpeak)])
+
+        # Spectral amplitude at fex
+        # amp_fex = spectra_filt[:, np.argmin(abs(freqs_filt - f))]
+        # amp_fex05 = np.sum(spectra_filt[:, (freqs_filt > f - 0.5) & (freqs_filt < f + 0.5)], axis=1)
+
+        if w != 0:
+            # Spectral amplitude at baseline peak
+            amp_fbase05 = np.array(
+                [sum(spectra_filt[i, (freqs_filt > initialPeak - 0.5) & (freqs_filt < initialPeak + 0.5)])
+                 for i, fp in enumerate(fpeak)])
+
+        else:
+            amp_fbase05 = [np.nan]*len(conn.region_labels)
+
+        # Calculate PLV
+        bands = [["3-alfa"], [(8, 12)]]
+        ## [["1-delta", "2-theta", "3-alfa", "4-beta", "5-gamma"], [(2, 4), (4, 8), (8, 12), (12, 30), (30, 45)]]
+
+        for b in range(len(bands[0])):
+
+            (lowcut, highcut) = bands[1][b]
+
+            # Band-pass filtering
+            filterSignals = filter.filter_data(stimulation_data, samplingFreq, lowcut, highcut)
+
+            # Obtain Analytical signal
+            efPhase = list()
+            # efEnvelope = list()
+
+            for i in range(len(filterSignals)):
+                analyticalSignal = scipy.signal.hilbert(filterSignals[i])
+                # Get instantaneous phase and amplitude envelope by channel
+                efPhase.append(np.unwrap(np.angle(analyticalSignal)))
+                # efEnvelope.append(np.abs(analyticalSignal))
+
+        plv = np.ndarray((len(efPhase), len(efPhase)))
+        for channel1 in range(len(efPhase)):
+            for channel2 in range(len(efPhase)):
+                phaseDifference = efPhase[channel1] - efPhase[channel2]
+                value = abs(np.average(np.exp(1j * phaseDifference)))
+                plv[channel1, channel2] = value
+
+        ## Gather results
+        for ii, roi in enumerate(conn.region_labels):
+
+            datapoints.append((mode + "_sigma"+str(sigma), emp_subj, w, initialPeak, r, roi, "stimulation",
+                               fpeak[ii], amp_fpeak05[ii], amp_fbase05[ii], np.average(plv[ii, plv[ii, :] != 1]), plv[ii, :]))
 
         print("LOOP ROUND REQUIRED %0.3f seconds.\n\n" % (time.time() - tic,))
 
