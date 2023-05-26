@@ -29,8 +29,8 @@ def nmm_parallel(params):
         from toolbox.signals import epochingTool
         from toolbox.fc import PLV
 
-    ## Folder structure - CLUSTER
-    else:
+    ## Folder structure - CesViMa (cluster)
+    elif "t192" in os.getcwd():
         wd = "/home/t192/t192950/mpi/"
         ctb_folder = wd + "CTB_dataOLD2/"
         ctb_folderOLD = wd + "CTB_dataOLD/"
@@ -41,7 +41,17 @@ def nmm_parallel(params):
         from toolbox.signals import epochingTool
         from toolbox.fc import PLV
 
+    ## Folder structure - BRIGIT (cluster)
+    else:
+        wd = "/mnt/lustre/home/jescab01/"
+        ctb_folder = wd + "CTB_dataOLD2/"
+        ctb_folderOLD = wd + "CTB_dataOLD/"
 
+        import sys
+        sys.path.append(wd)
+        from toolbox.fft import FFTpeaks, PSD
+        from toolbox.signals import epochingTool
+        from toolbox.fc import PLV
 
     # Prepare simulation parameters
     simLength = 50 * 1000  # ms
@@ -71,7 +81,7 @@ def nmm_parallel(params):
                          'Parietal_Inf_R', 'Precuneus_L', 'Precuneus_R',
                          'Thalamus_L', 'Thalamus_R']
 
-        isolated_rois = ['Precuneus_R', 'Cingulate_Post_R']
+        isolated_rois = ['Cingulate_Ant_R', 'Frontal_Mid_2_L']
 
         # load text with FC rois; check if match SC
         FClabs = list(np.loadtxt(ctb_folder + "FCrms_" + emp_subj + "/roi_labels_rms.txt", dtype=str))
@@ -127,11 +137,11 @@ def nmm_parallel(params):
         weighting = weighting[SC_cb_idx]  # weights for nodes in play
 
         if "anti" in mode:
-            weighting = np.array([w if conn.region_labels[i] == "Precuneus_R" else
-                                  -w if conn.region_labels[i] == "Cingulate_Post_R" else 0 for i, w in enumerate(weighting)])
+            weighting = np.array([w if conn.region_labels[i] == isolated_rois[0] else
+                                  -w if conn.region_labels[i] == isolated_rois[1] else 0 for i, w in enumerate(weighting)])
 
         elif "cb" in mode:
-            weighting = np.array([w if conn.region_labels[i] == "Precuneus_R" else 0 for i, w in enumerate(weighting)])
+            weighting = np.array([w if conn.region_labels[i] == isolated_rois[0] else 0 for i, w in enumerate(weighting)])
 
         elif "Node" in mode:
             weighting[1] = 0  # Stimulate just first node

@@ -31,18 +31,19 @@ cingulum_rois = ['Frontal_Mid_2_L', 'Frontal_Mid_2_R',
                  'Precuneus_L', 'Precuneus_R',
                  'Thalamus_L', 'Thalamus_R']
 
+# rois = ['Cingulate_Ant_R', 'Frontal_Mid_2_L', 'Precuneus_R']
+rois = ["Precuneus_R", "Cingulate_Post_R", "Frontal_Mid_2_R"]
+# rois = ["Precuneus_L", "Precuneus_R", "Frontal_Mid_2_R"]
+
 
 ####           NMM          ######
 
 # 0a. Load data
-simtag = "PSEmpi_nmm_stimAllConds-m04d07y2023-t10h.27m.37s"
+simtag = "PSEmpi_nmm_stimAllConds-m04d07y2023-t10h.27m.37s" ## cingulate - "PSEmpi_nmm_stimAllConds-m04d24y2023-t05h.39m.53s"
 df_arnold = pd.read_pickle(nmm_folder + simtag + "\\nmm_results.pkl")
 
 df_arnold = df_arnold.astype({"mode": str, "trial": int, "node": str, "weight": float,
                               "fex": float, "fpeak": float, "amplitude_fex": float, "amplitude_fpeak": float})
-
-rois = ["Precuneus_R", "Cingulate_Post_R", "Frontal_Mid_2_R"]
-# rois = ["Precuneus_L", "Precuneus_R", "Frontal_Mid_2_R"]
 
 rois_ids = [cingulum_rois.index(roi) for roi in rois]
 
@@ -308,34 +309,36 @@ pio.write_image(fig, fig_folder + "R2_NMM_arnoldTongues.svg")
 
 
 ####             SPIKING           ####
-spk1_df = pd.read_csv(spk_folder + "one_node_tacs.txt", delimiter="\t", index_col=0)
+sim_tag = "ArnoldTongues_ACC\\"
+
+spk1_df = pd.read_csv(spk_folder + sim_tag + "one_node_tacs_experimental_density.txt", delimiter="\t", index_col=0)
 spk1_df["mode"] = "lfp_single"
-spk1_df_avg = spk1_df.loc[spk1_df["simulation"]=="lfp"].groupby(["mode", "node", "weight", "fex"]).mean().reset_index().iloc[:, [0,1,2,3,5,6,7]]
+spk1_df_avg = spk1_df.loc[spk1_df["simulation"]=="lfp"].groupby(["mode", "node", "weight", "fex"]).mean().reset_index().iloc[:, [0,1,2,3,6,7,8]]
 colnames = spk1_df_avg.columns
 
-spk2_df = pd.read_csv(spk_folder + "two_nodes_tacs.txt", delimiter="\t", index_col=0)
+spk2_df = pd.read_csv(spk_folder + sim_tag + "two_nodes_tacs.txt", delimiter="\t", index_col=0)
 spk2_df["mode"] = "lfp_couple"
 spk2_df_avg = spk2_df.loc[spk2_df["simulation"]=="lfp"].groupby(["mode", "node", "weight", "fex"]).mean().reset_index().iloc[:, [0,1,2,3,5,6,7]]
 
 
-spk_cb_df = pd.read_csv(spk_folder + "stimulation_OzCz_precuneus_nodes.txt", delimiter="\t", index_col=0)
+spk_cb_df = pd.read_csv(spk_folder + sim_tag + "stimulation_OzCz_densities_nodes.txt", delimiter="\t", index_col=0)
 spk_cb_df["mode"] = "lfp_cb"
 spk_cb_df_avg = spk_cb_df.groupby(["mode", "node", "w", "fex"]).mean().reset_index().iloc[:, [0,1,2,3,5,6,7]]
 spk_cb_df_avg.columns = colnames
 
-spk_cb_anti_df = pd.read_csv(spk_folder + "stimulation_OzCz_precuneus_antiphase_nodes.txt", delimiter="\t", index_col=0)
-spk_cb_anti_df["mode"] = "lfp_cb_anti"
-spk_cb_anti_df_avg = spk_cb_anti_df.groupby(["mode", "node", "w", "fex"]).mean().reset_index().iloc[:, [0,1,2,3,5,6,7]]
-spk_cb_anti_df_avg.columns = colnames
+# spk_cb_anti_df = pd.read_csv(spk_folder + "stimulation_OzCz_precuneus_antiphase_nodes.txt", delimiter="\t", index_col=0)
+# spk_cb_anti_df["mode"] = "lfp_cb_anti"
+# spk_cb_anti_df_avg = spk_cb_anti_df.groupby(["mode", "node", "w", "fex"]).mean().reset_index().iloc[:, [0,1,2,3,5,6,7]]
+# spk_cb_anti_df_avg.columns = colnames
 
-spk_df_avg = pd.concat([spk1_df_avg, spk2_df_avg, spk_cb_df_avg, spk_cb_anti_df_avg])
+spk_df_avg = pd.concat([spk1_df_avg, spk2_df_avg, spk_cb_df_avg])
 
 
 # PLV dfs
-spk_cbplv_df_avg = spk_cb_df.groupby(["mode", "node", "w", "fex"]).mean().reset_index().iloc[:, [0,1,2,3,5,6,7,10,11]]
-spk_cbplv_anti_df_avg = spk_cb_anti_df.groupby(["mode", "node", "w", "fex"]).mean().reset_index().iloc[:, [0,1,2,3,5,6,7,10,11]]
+# spk_cbplv_df_avg = spk_cb_df.groupby(["mode", "node", "w", "fex"]).mean().reset_index().iloc[:, [0,1,2,3,5,6,7,10,11]]
+# spk_cbplv_anti_df_avg = spk_cb_anti_df.groupby(["mode", "node", "w", "fex"]).mean().reset_index().iloc[:, [0,1,2,3,5,6,7,10,11]]
 
-spk2plv_df = pd.read_csv(spk_folder + "two_nodes_plv_tacs.txt", delimiter="\t", index_col=0)
+spk2plv_df = pd.read_csv(spk_folder + sim_tag + "two_nodes_plv_tacs.txt", delimiter="\t", index_col=0)
 spk2plv_df_avg = spk2plv_df.loc[spk2plv_df["simulation"]=="lfp"].groupby(["weight", "fex"]).mean().reset_index()
 
 
@@ -348,7 +351,7 @@ plv_min, plv_max, plv_colorscale = 0, 1, px.colors.sequential.Darkmint
 sp_titles = ["             "+rois[0]+"<br>Frequency", "Power"] + [""] * 9 +\
           ["             "+rois[1]+"<br>Frequency", "Power", "FC"] + [""] * 9 +\
           ["            "+rois[2]+"<br>Frequency", "Power", "             FC"]
-fig = make_subplots(rows=4, cols=9, shared_yaxes=True, subplot_titles=sp_titles, vertical_spacing=0.05,
+fig = make_subplots(rows=3, cols=9, shared_yaxes=True, subplot_titles=sp_titles, vertical_spacing=0.05,
                     x_title="Stimulation Frequency (Hz)", y_title="Stimulation Weight")
 
 measures = ["fpeak", "amplitude_fpeak", "plv"]
@@ -457,49 +460,49 @@ fig.add_trace(go.Heatmap(z=df_sub[measures[1]], x=df_sub.fex, y=df_sub.weight,
 #                          colorbar=plv_colorbar), row=3, col=9)
 
 # 4. Arnold tongue for the Cingulum bundle with antiphase stimulation
-# 4.1 Precuneus L (Stimulated)
-df_sub = spk_df_avg.loc[(spk_df_avg["mode"] == "lfp_cb_anti") & (spk_df_avg["node"] == rois[0])]
-
-fig.add_trace(go.Heatmap(z=df_sub[measures[0]], x=df_sub.fex, y=df_sub.weight,
-                         showscale=sl, colorscale=freq_colorscale, zmin=freq_min, zmax=freq_max,
-                         colorbar=freq_colorbar), row=4, col=1)
-fig.add_trace(go.Heatmap(z=df_sub[measures[1]], x=df_sub.fex, y=df_sub.weight,
-                         showscale=sl, colorscale=pow_colorscale, zmin=pow_min, zmax=pow_max,
-                         colorbar=pow_colorbar), row=4, col=2)
-
-# 4.2 Precuneus R (antiphase stimulation)
-df_sub = spk_df_avg.loc[(spk_df_avg["mode"] == "lfp_cb_anti") & (spk_df_avg["node"] == rois[1])]
-
-sl = False
-fig.add_trace(go.Heatmap(z=df_sub[measures[0]], x=df_sub.fex, y=df_sub.weight,
-                         showscale=sl, colorscale=freq_colorscale, zmin=freq_min, zmax=freq_max,
-                         colorbar=freq_colorbar), row=4, col=3)
-fig.add_trace(go.Heatmap(z=df_sub[measures[1]], x=df_sub.fex, y=df_sub.weight,
-                         showscale=sl, colorscale=pow_colorscale, zmin=pow_min, zmax=pow_max,
-                         colorbar=pow_colorbar), row=4, col=4)
-# # PLV
-# fig.add_trace(go.Heatmap(z=df_sub[measures[2]], x=df_sub.fex, y=df_sub.weight,
-#                          showscale=sl, colorscale=plv_colorscale, zmin=plv_min, zmax=plv_max,
-#                          colorbar=plv_colorbar), row=4, col=5)
-
-# 4.3 Frontal Mid L
-df_sub = spk_df_avg.loc[(spk_df_avg["mode"] == "lfp_cb_anti") & (spk_df_avg["node"] == rois[2])]
-
-sl = False
-
-fig.add_trace(go.Heatmap(z=df_sub[measures[0]], x=df_sub.fex, y=df_sub.weight,
-                         showscale=sl, colorscale=freq_colorscale, zmin=freq_min, zmax=freq_max,
-                         colorbar=freq_colorbar), row=4, col=6)
-fig.add_trace(go.Heatmap(z=df_sub[measures[1]], x=df_sub.fex, y=df_sub.weight,
-                         showscale=sl, colorscale=pow_colorscale, zmin=pow_min, zmax=pow_max,
-                         colorbar=pow_colorbar), row=4, col=7)
-# # PLV
-# fig.add_trace(go.Heatmap(z=df_sub[measures[3]], x=df_sub.fex, y=df_sub.weight,
-#                          showscale=sl, colorscale=plv_colorscale, zmin=plv_min, zmax=plv_max,
-#                          colorbar=plv_colorbar), row=4, col=8)
-# fig.add_trace(go.Heatmap(z=df_sub[measures[4]], x=df_sub.fex, y=df_sub.weight,
-#                          showscale=sl, colorscale=plv_colorscale, zmin=plv_min, zmax=plv_max,
-#                          colorbar=plv_colorbar), row=4, col=9)
+# # 4.1 Precuneus L (Stimulated)
+# df_sub = spk_df_avg.loc[(spk_df_avg["mode"] == "lfp_cb_anti") & (spk_df_avg["node"] == rois[0])]
+#
+# fig.add_trace(go.Heatmap(z=df_sub[measures[0]], x=df_sub.fex, y=df_sub.weight,
+#                          showscale=sl, colorscale=freq_colorscale, zmin=freq_min, zmax=freq_max,
+#                          colorbar=freq_colorbar), row=4, col=1)
+# fig.add_trace(go.Heatmap(z=df_sub[measures[1]], x=df_sub.fex, y=df_sub.weight,
+#                          showscale=sl, colorscale=pow_colorscale, zmin=pow_min, zmax=pow_max,
+#                          colorbar=pow_colorbar), row=4, col=2)
+#
+# # 4.2 Precuneus R (antiphase stimulation)
+# df_sub = spk_df_avg.loc[(spk_df_avg["mode"] == "lfp_cb_anti") & (spk_df_avg["node"] == rois[1])]
+#
+# sl = False
+# fig.add_trace(go.Heatmap(z=df_sub[measures[0]], x=df_sub.fex, y=df_sub.weight,
+#                          showscale=sl, colorscale=freq_colorscale, zmin=freq_min, zmax=freq_max,
+#                          colorbar=freq_colorbar), row=4, col=3)
+# fig.add_trace(go.Heatmap(z=df_sub[measures[1]], x=df_sub.fex, y=df_sub.weight,
+#                          showscale=sl, colorscale=pow_colorscale, zmin=pow_min, zmax=pow_max,
+#                          colorbar=pow_colorbar), row=4, col=4)
+# # # PLV
+# # fig.add_trace(go.Heatmap(z=df_sub[measures[2]], x=df_sub.fex, y=df_sub.weight,
+# #                          showscale=sl, colorscale=plv_colorscale, zmin=plv_min, zmax=plv_max,
+# #                          colorbar=plv_colorbar), row=4, col=5)
+#
+# # 4.3 Frontal Mid L
+# df_sub = spk_df_avg.loc[(spk_df_avg["mode"] == "lfp_cb_anti") & (spk_df_avg["node"] == rois[2])]
+#
+# sl = False
+#
+# fig.add_trace(go.Heatmap(z=df_sub[measures[0]], x=df_sub.fex, y=df_sub.weight,
+#                          showscale=sl, colorscale=freq_colorscale, zmin=freq_min, zmax=freq_max,
+#                          colorbar=freq_colorbar), row=4, col=6)
+# fig.add_trace(go.Heatmap(z=df_sub[measures[1]], x=df_sub.fex, y=df_sub.weight,
+#                          showscale=sl, colorscale=pow_colorscale, zmin=pow_min, zmax=pow_max,
+#                          colorbar=pow_colorbar), row=4, col=7)
+# # # PLV
+# # fig.add_trace(go.Heatmap(z=df_sub[measures[3]], x=df_sub.fex, y=df_sub.weight,
+# #                          showscale=sl, colorscale=plv_colorscale, zmin=plv_min, zmax=plv_max,
+# #                          colorbar=plv_colorbar), row=4, col=8)
+# # fig.add_trace(go.Heatmap(z=df_sub[measures[4]], x=df_sub.fex, y=df_sub.weight,
+# #                          showscale=sl, colorscale=plv_colorscale, zmin=plv_min, zmax=plv_max,
+# #                          colorbar=plv_colorbar), row=4, col=9)
 
 fig.update_layout(template="plotly_white", height=600, width=900)
 pio.write_html(fig, fig_folder + "R2_SPK_arnoldTongues.html", auto_open=True)

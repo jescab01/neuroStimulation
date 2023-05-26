@@ -14,9 +14,12 @@ import plotly.io as pio
 
 ctb_folder = "E:\\LCCN_Local\PycharmProjects\CTB_dataOLD2\\"
 fig_folder = "E:\\LCCN_Local\PycharmProjects\\neuroStimulation\PAPER2_AbstractMode\Figures\\"
+
+
+
+#### A. NEURAL MASS MODELS
+
 nmm_folder = "E:\\LCCN_Local\PycharmProjects\\neuroStimulation\PAPER2_AbstractMode\output_NMM\\"
-
-
 # Define regions implicated in Functional analysis: remove  Cerebelum, Thalamus, Caudate (i.e. subcorticals)
 cingulum_rois = ['Frontal_Mid_2_L', 'Frontal_Mid_2_R',
                  'Insula_L', 'Insula_R',
@@ -61,8 +64,8 @@ w, working_points = 0.6, [("NEMOS_035", 27),  # JR pass @ 27/03/2023
                   ("NEMOS_071", 36),
                   ("NEMOS_075", 48),
                   ("NEMOS_077", 38)]
-df["ef_mag"], df["sc"], df["abs_ef_mag"], df["log_sc"] = np.nan, np.nan, np.nan, np.nan
 
+df["ef_mag"], df["sc"], df["abs_ef_mag"], df["log_sc"] = np.nan, np.nan, np.nan, np.nan
 for emp_subj, _ in working_points:
 
     conn = connectivity.Connectivity.from_file(ctb_folder + emp_subj + "_AAL2_pass.zip")
@@ -218,7 +221,6 @@ fig.show("browser")
 
 # 3.1.c Multicolinearity (correlation between variables) # VIF
 corr = df[["delta_fbase"] + ind_vars].corr()
-
 
 
 

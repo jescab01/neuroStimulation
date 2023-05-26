@@ -1,0 +1,255 @@
+"""
+### This is going to be a full plot for the isolated stimulation
+# The plot will be made independently for nmm y spk, 
+# and finally merged with illustrations for the stimulation
+"""
+
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+import pandas as pd
+import numpy as np
+import scipy.signal
+
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.express as px
+
+
+##########          Neural Mass Models          ###########
+
+## 1. Load data
+
+main_folder = "E:\LCCN_Local\PycharmProjects\\neuroStimulation\PAPER2_AbstractMode\Rx_phasediffs\\"
+
+# 1.1 Phase differences experiments
+simtag = "PSEmpi_phasediff_stimAllConds-m04d01y2023-t22h.50m.48s"
+df_phases = pd.read_pickle(main_folder + simtag + "\\nmm_results.pkl")
+
+df_ph_single = df_phases.loc[(df_phases["mode"] == "isolatedStim_oneNode_sigma0.11") & (df_phases["node"] == "stim_Precuneus_L")]
+
+# add several metrics: is fex==tofpeak?; number of 2pi dephases; initial phase difference signal-stim.
+df_ph_single["fex==fpeak"] = [True if row["fex"] == row["fpeak"] else False for i, row in df_ph_single.iterrows()]
+
+init_diff, n_2pi = [], []
+for i, row in df_ph_single.iterrows():
+
+    freq = row["fex"]
+    t = 12 if row["cond"] == "baseline" else 34
+    timepoints = np.linspace(0, t, len(row["fPhase"]))
+
+    sin = np.sin(2 * np.pi * freq * timepoints)
+
+    analyticalSignal = scipy.signal.hilbert(sin)
+    sin_phase = np.unwrap(np.angle(analyticalSignal))
+
+    diff = row["fPhase"] - sin_phase
+
+    # save initial difference value
+    init_diff.append(np.average(diff[10:20]))
+
+    # calculate 2pi dephases
+    pi2 = diff + np.pi // (2 * np.pi)
+    pi2_changes = np.array([val - pi2[i] for i, val in enumerate(pi2[1:])])
+
+    n_2pi.append(sum(pi2_changes)/t)
+
+df_ph_single["init_ph_diff"] = init_diff
+df_ph_single["n_2pi_per_s"] = n_2pi
+
+# # 1.2 Arnold tongue experiments
+# simtag = "PSEmpi_nmm_stimAllConds-m04d07y2023-t10h.27m.37s"
+# df_arnold = pd.read_pickle("E:\LCCN_Local\PycharmProjects\\neuroStimulation\PAPER2_AbstractMode\output_NMM\\" + simtag + "\\nmm_results.pkl")
+#
+#
+# df_arnold_avg = df_arnold[["mode", "node", "weight", "fex", "fpeak", "amplitude_fpeak", "amplitude_fex"]].groupby(["mode", "node", "weight", "fex"]).mean().reset_index()  # average out repetitions
+#
+# # 1.2a Pre-allocate relative changes and compute them
+# df_arnold_avg["amplitude_fex_rel"], df_arnold_avg["amplitude_fpeak_rel"] = 0, 0
+# for mode in list(set(df_arnold_avg["mode"].values)):
+#     df_arnold_avg["amplitude_fex_rel"].loc[df_arnold_avg["mode"] == mode] = df_arnold_avg["amplitude_fex"].loc[df_arnold_avg["mode"]==mode] / df_arnold_avg["amplitude_fex"].loc[(df_arnold_avg["weight"] == 0) & (df_arnold_avg["mode"]==mode)].mean()
+#     df_arnold_avg["amplitude_fpeak_rel"].loc[df_arnold_avg["mode"] == mode] = df_arnold_avg["amplitude_fpeak"].loc[df_arnold_avg["mode"]==mode] / df_arnold_avg["amplitude_fpeak"].loc[(df_arnold_avg["weight"] == 0) & (df_arnold_avg["mode"]==mode)].mean()
+#
+
+
+
+## 3. PLOTTING
+n_cols = 12
+fig = make_subplots(rows=4, cols=n_cols)
+
+df_base = df_ph_single.loc[df_ph_single["cond"] == "baseline"]
+
+# 3.1 Single node simulations
+# 3.1a violin plots for baseline (wo/ stimulation) conditions on single node [frequency, power, plv]
+df_sub = df_base.loc[(df_base["node"] == "stim_Precuneus_L") & (df_base["mode"] == "isolatedStim_oneNode_sigma0.11")]  # selects only single node simulation
+fig.add_trace(go.Violin(x=["Frequency"]*len(df_sub["fpeak"].values), y=df_sub["fpeak"].values), row=1, col=n_cols)
+fig.add_trace(go.Violin(x=["Power"]*len(df_sub["amplitude_fpeak"].values), y=df_sub["amplitude_fpeak"].values), row=1, col=n_cols-1)
+
+plvs = [row["plv"][1] for i, row in df_sub.iterrows()]
+fig.add_trace(go.Violin(x=["PLV"]*len(plvs), y=plvs), row=1, col=n_cols-2)
+
+
+# 3.1b arnold tongue for the single node stimulation
+df_sub = df_arnold.loc[(df_arnold["mode"] == "isolatedStim_oneNode_sigma0.11") & (df_arnold["node"] == "stim_Precuneus_L")]
+
+df_sub = df_sub.groupby(["weight", "fex"]).mean().reset_index()
+
+fig.add_trace(go.Heatmap(z=df_sub.fpeak, x=df_sub.fex, y=df_sub.weight,
+                         colorscale='Turbo', showscale=False,
+                         colorbar=dict(title="Hz", thickness=4, len=0.3, y=0.85, x=1)), row=1, col=n_cols-3)
+
+fig.add_trace(go.Heatmap(z=df_sub.amplitude_fpeak, x=df_sub.fex, y=df_sub.weight,
+                         showscale=False,
+                         colorbar=dict(title="dB", thickness=4, len=0.3, y=0.5, x=0.47)),
+              row=1, col=n_cols-4)
+
+
+# 3.1c NOT::Plot time_to_entrainment (if entrainment) by init_phase_diff (after transient) per frequency.
+# It's 4s of transient; 12s of baseline; 34s of stim.
+df_sub = df_ph_single.loc[df_ph_single["cond"] == "baseline"]
+fig.add_trace(go.Violin(x=df_sub.fex, y=df_sub.n_2pi_per_s), row=1, col=n_cols-5)  # baseline
+
+df_sub = df_ph_single.loc[df_ph_single["cond"] == "stimulation"]
+fig.add_trace(go.Violin(x=df_sub.fex, y=df_sub.n_2pi_per_s), row=1, col=n_cols-5)  # stimulation
+
+
+## UNDERSTANDING PHASE DIFFERENCES
+fig_aux = px.scatter(df_ph_single, x="init_ph_diff", y="n_2pi_per_s", color="fex")
+fig_aux.show("browser")
+
+fig_aux = px.strip(df_ph_single, x="fex", y="n_2pi_per_s", color="fex==fpeak")
+fig_aux.show("browser")
+
+fig_aux = px.strip(df_ph_single, x="fex", y="n_2pi_per_s", color="cond")
+fig_aux.show("browser")
+
+# PLOT the phases and difference to understand whats happening
+fig_aux = go.Figure()
+df_sub = df_ph_single.iloc[5, :]
+
+freq = df_sub["fex"]
+t = 12 if df_sub["cond"] == "baseline" else 34
+timepoints = np.linspace(0, t, len(df_sub["fPhase"]))
+
+# Phase of the node
+sig_phase = np.arctan2(np.sin(df_sub["fPhase"]), np.cos(df_sub["fPhase"]))
+fig_aux.add_trace(go.Scatter(x=timepoints, y=sig_phase, name="phase_signal"))
+
+# Phase of the stimulation
+sin_1 = np.sin(2 * np.pi * freq * timepoints)
+analyticalSignal = scipy.signal.hilbert(sin_1)
+sin_phase = np.angle(analyticalSignal)
+fig_aux.add_trace(go.Scatter(x=timepoints, y=sin_phase, name="phase_stim"))
+
+# Warped difference of phases
+fig_aux.add_trace(go.Scatter(x=timepoints, y=sig_phase-sin_phase, name="diff"))
+
+# unwraped difference of phases
+sin_phase = np.unwrap(np.angle(analyticalSignal))
+fig_aux.add_trace(go.Scatter(x=timepoints, y=df_sub["fPhase"]-sin_phase, name="diff_unwarped"))
+fig_aux.update_layout(xaxis=dict(title="time (seconds)"), yaxis=dict(title="radians"))
+
+fig_aux.show("browser")
+
+
+
+# 3.2 Coupled node simulations
+# 3.2a violin plots for baseline (wo/ stimulation) conditions on single node [frequency, power, plv]
+df_base = df_phases.loc[(df_phases["node"] == "stim_Precuneus_L") & (df_phases["mode"] == "isolatedStim_twoNodes_sigma0.11") & (df_phases["cond"] == "baseline")]
+fig.add_trace(go.Violin(x=["Frequency"]*len(df_base["fpeak"].values), y=df_base["fpeak"].values), row=2, col=n_cols)
+fig.add_trace(go.Violin(x=["Power"]*len(df_base["amplitude_fpeak"].values), y=df_base["amplitude_fpeak"].values), row=2, col=n_cols-1)
+
+df_base = df_phases.loc[(df_phases["node"] == "Precuneus_R") & (df_phases["mode"] == "isolatedStim_twoNodes_sigma0.11") & (df_phases["cond"] == "baseline")]
+fig.add_trace(go.Violin(x=["Frequency"]*len(df_base["fpeak"].values), y=df_base["fpeak"].values), row=2, col=n_cols)
+fig.add_trace(go.Violin(x=["Power"]*len(df_base["amplitude_fpeak"].values), y=df_base["amplitude_fpeak"].values), row=2, col=n_cols-1)
+
+df_base = df_phases.loc[(df_phases["node"] == "stim_Precuneus_L") & (df_phases["mode"] == "isolatedStim_twoNodes_sigma0.11") & (df_phases["cond"] == "baseline")]
+plvs = [row["plv"][1] for i, row in df_base.iterrows()]
+fig.add_trace(go.Violin(x=["PLV"]*len(plvs), y=plvs), row=2, col=n_cols-2)
+
+
+# 3.2b arnold tongue for the single node stimulation
+df_sub = df_arnold.loc[(df_arnold["mode"] == "isolatedStim_twoNodes_sigma0.11") & (df_arnold["node"] == "stim_Precuneus_L")]
+df_sub = df_sub.groupby(["weight", "fex"]).mean().reset_index()
+fig.add_trace(go.Heatmap(z=df_sub.fpeak, x=df_sub.fex, y=df_sub.weight,
+                         colorscale='Turbo', showscale=False,
+                         colorbar=dict(title="Hz", thickness=4, len=0.3, y=0.85, x=1)), row=2, col=n_cols-3)
+
+fig.add_trace(go.Heatmap(z=df_sub.amplitude_fpeak, x=df_sub.fex, y=df_sub.weight,
+                         showscale=False,
+                         colorbar=dict(title="dB", thickness=4, len=0.3, y=0.5, x=0.47)),
+              row=2, col=n_cols-4)
+
+
+df_sub = df_arnold.loc[(df_arnold["mode"] == "isolatedStim_twoNodes_sigma0.11") & (df_arnold["node"] == "Precuneus_R")]
+df_sub = df_sub.groupby(["weight", "fex"]).mean().reset_index()
+fig.add_trace(go.Heatmap(z=df_sub.fpeak, x=df_sub.fex, y=df_sub.weight,
+                         colorscale='Turbo', showscale=False,
+                         colorbar=dict(title="Hz", thickness=4, len=0.3, y=0.85, x=1)), row=2, col=n_cols-5)
+
+fig.add_trace(go.Heatmap(z=df_sub.amplitude_fpeak, x=df_sub.fex, y=df_sub.weight,
+                         showscale=False,
+                         colorbar=dict(title="dB", thickness=4, len=0.3, y=0.5, x=0.47)),
+              row=2, col=n_cols-6)
+
+
+plvs = [row["plv"][0] for i, row in df_sub.iterrows()]
+
+fig.add_trace(go.Heatmap(z=plvs, x=df_sub.fex, y=df_sub.weight,
+                         showscale=False, colorscale="RdBu",
+                         colorbar=dict(title="dB", thickness=4, len=0.3, y=0.5, x=0.47)),
+              row=2, col=n_cols-7)
+
+
+# 3.3 Cingulum bundle simulations :: stim Precuneus_L
+# 3.3a violin plots for baseline (wo/ stimulation) conditions on single node [frequency, power, plv]
+df_base = df_phases.loc[(df_phases["node"] == "stim_Precuneus_L") & (df_phases["mode"] == "isolatedStim_twoNodes_sigma0.11") & (df_phases["cond"] == "baseline")]
+fig.add_trace(go.Violin(x=["Frequency"]*len(df_base["fpeak"].values), y=df_base["fpeak"].values), row=2, col=n_cols)
+fig.add_trace(go.Violin(x=["Power"]*len(df_base["amplitude_fpeak"].values), y=df_base["amplitude_fpeak"].values), row=2, col=n_cols-1)
+
+df_base = df_phases.loc[(df_phases["node"] == "Precuneus_R") & (df_phases["mode"] == "isolatedStim_twoNodes_sigma0.11") & (df_phases["cond"] == "baseline")]
+fig.add_trace(go.Violin(x=["Frequency"]*len(df_base["fpeak"].values), y=df_base["fpeak"].values), row=2, col=n_cols)
+fig.add_trace(go.Violin(x=["Power"]*len(df_base["amplitude_fpeak"].values), y=df_base["amplitude_fpeak"].values), row=2, col=n_cols-1)
+
+df_base = df_phases.loc[(df_phases["node"] == "stim_Precuneus_L") & (df_phases["mode"] == "isolatedStim_twoNodes_sigma0.11") & (df_phases["cond"] == "baseline")]
+plvs = [row["plv"][1] for i, row in df_base.iterrows()]
+fig.add_trace(go.Violin(x=["PLV"]*len(plvs), y=plvs), row=2, col=n_cols-2)
+
+
+# 3.3b arnold tongue for the single node stimulation
+df_sub = df_arnold.loc[(df_arnold["mode"] == "isolatedStim_twoNodes_sigma0.11") & (df_arnold["node"] == "stim_Precuneus_L")]
+df_sub = df_sub.groupby(["weight", "fex"]).mean().reset_index()
+fig.add_trace(go.Heatmap(z=df_sub.fpeak, x=df_sub.fex, y=df_sub.weight,
+                         colorscale='Turbo', showscale=False,
+                         colorbar=dict(title="Hz", thickness=4, len=0.3, y=0.85, x=1)), row=2, col=n_cols-3)
+
+fig.add_trace(go.Heatmap(z=df_sub.amplitude_fpeak, x=df_sub.fex, y=df_sub.weight,
+                         showscale=False,
+                         colorbar=dict(title="dB", thickness=4, len=0.3, y=0.5, x=0.47)),
+              row=2, col=n_cols-4)
+
+
+df_sub = df_arnold.loc[(df_arnold["mode"] == "isolatedStim_twoNodes_sigma0.11") & (df_arnold["node"] == "Precuneus_R")]
+df_sub = df_sub.groupby(["weight", "fex"]).mean().reset_index()
+fig.add_trace(go.Heatmap(z=df_sub.fpeak, x=df_sub.fex, y=df_sub.weight,
+                         colorscale='Turbo', showscale=False,
+                         colorbar=dict(title="Hz", thickness=4, len=0.3, y=0.85, x=1)), row=2, col=n_cols-5)
+
+fig.add_trace(go.Heatmap(z=df_sub.amplitude_fpeak, x=df_sub.fex, y=df_sub.weight,
+                         showscale=False,
+                         colorbar=dict(title="dB", thickness=4, len=0.3, y=0.5, x=0.47)),
+              row=2, col=n_cols-6)
+
+
+plvs = [row["plv"][0] for i, row in df_sub.iterrows()]
+
+fig.add_trace(go.Heatmap(z=plvs, x=df_sub.fex, y=df_sub.weight,
+                         showscale=False, colorscale="RdBu",
+                         colorbar=dict(title="dB", thickness=4, len=0.3, y=0.5, x=0.47)),
+              row=2, col=n_cols-7)
+
+fig.update_layout(violinmode="group")
+fig.show("browser")
+
+
+

@@ -63,7 +63,7 @@ ttest = pg.ttest(plv_stimulated_vals, plv_baseline_vals, paired=True, alternativ
 deltas = np.array(plv_stimulated_vals - plv_baseline_vals)
 
 fig = ff.create_distplot([deltas], ["deltas fc"], bin_size=0.005)
-fig.update_layout(title="delta of Phase locking values for the average of 10 simulated virtual brains")
+fig.update_layout(title="delta of PLV for the average of 10 simulated virtual brains")
 fig.show("browser")
 
 # percentages of reduce, higher and stable
